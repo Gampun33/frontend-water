@@ -41,11 +41,11 @@ app.get('/api', (req, res) => {
   res.json({ 
     status: 'ok', 
     message: 'HydroMonitor API Ready', 
-    version: '1.1.0', // Updated version
+    version: '1.2.0', // Updated version
     endpoints: [
       '/api/login', 
       '/api/reports',
-      '/api/users' // Added users endpoint
+      '/api/users'
     ]
   });
 });
@@ -77,11 +77,13 @@ app.post('/api/login', (req, res) => {
 
 // --- Water Reports APIs ---
 
-// 2. Get All Reports
+// 2. Get All Reports (จุดที่แก้: เพิ่ม createdBy)
 app.get('/api/reports', (req, res) => {
   logRequest('GET', '/api/reports');
   db.query('SELECT * FROM water_reports ORDER BY report_date DESC', (err, results) => {
     if (err) return res.status(500).json({ error: err.message });
+    
+    // แปลงข้อมูลจาก Database (snake_case) เป็น JSON (camelCase) ให้ Frontend
     const formatted = results.map(row => ({
       id: row.id,
       stationName: row.station_name,
@@ -92,8 +94,12 @@ app.get('/api/reports', (req, res) => {
       percent: (row.current_volume / row.capacity) * 100,
       inflow: row.inflow,
       outflow: row.outflow,
-      status: row.status
+      status: row.status,
+      
+      // ✅ [แก้ตรงนี้] ต้องส่ง createdBy ไปด้วย Frontend ถึงจะเห็นชื่อคนส่ง!
+      createdBy: row.created_by 
     }));
+    
     res.json(formatted);
   });
 });
@@ -101,17 +107,21 @@ app.get('/api/reports', (req, res) => {
 // 3. Create Report
 app.post('/api/reports', (req, res) => {
   logRequest('POST', '/api/reports', req.body);
-  const { stationName, date, waterLevel, inflow, outflow } = req.body;
+  
+  // รับค่า createdBy (ชื่อคนส่ง) มาด้วย
+  const { stationName, date, waterLevel, inflow, outflow, createdBy } = req.body; 
+  
   const current = parseFloat(waterLevel); 
   const capacity = 100;
 
-  const sql = `
+  const sql = ` 
     INSERT INTO water_reports 
-    (station_name, report_date, water_level, capacity, current_volume, inflow, outflow, status) 
-    VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')
+    (station_name, report_date, water_level, capacity, current_volume, inflow, outflow, status, created_by) 
+    VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?)
   `;
   
-  db.query(sql, [stationName, date, waterLevel, capacity, current, inflow, outflow], (err, result) => {
+  // บันทึก createdBy ลง Database
+  db.query(sql, [stationName, date, waterLevel, capacity, current, inflow || 0, outflow || 0, createdBy], (err, result) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json({ success: true, id: result.insertId });
   });
@@ -136,14 +146,23 @@ app.put('/api/reports/:id', (req, res) => {
   });
 });
 
-// --- User Management APIs (เพิ่มส่วนนี้!) ---
+// 5. Delete Report (เผื่อไว้ใช้)
+app.delete('/api/reports/:id', (req, res) => {
+  logRequest('DELETE', `/api/reports/${req.params.id}`);
+  const { id } = req.params;
+  db.query('DELETE FROM water_reports WHERE id = ?', [id], (err, result) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ success: true });
+  });
+});
 
-// 5. Get All Users
+// --- User Management APIs ---
+
+// 6. Get All Users
 app.get('/api/users', (req, res) => {
   logRequest('GET', '/api/users');
   db.query('SELECT id, username, role, full_name, organization FROM users', (err, results) => {
     if (err) return res.status(500).json({ error: err.message });
-    // แปลง snake_case เป็น camelCase ให้ Frontend ใช้ง่ายๆ
     const formatted = results.map(user => ({
       id: user.id,
       username: user.username,
@@ -155,7 +174,7 @@ app.get('/api/users', (req, res) => {
   });
 });
 
-// 6. Create User
+// 7. Create User
 app.post('/api/users', (req, res) => {
   logRequest('POST', '/api/users', req.body);
   const { username, password, role, fullName, organization } = req.body;
@@ -166,7 +185,7 @@ app.post('/api/users', (req, res) => {
   });
 });
 
-// 7. Update User
+// 8. Update User
 app.put('/api/users/:id', (req, res) => {
   logRequest('PUT', `/api/users/${req.params.id}`, req.body);
   const { id } = req.params;
@@ -175,7 +194,6 @@ app.put('/api/users/:id', (req, res) => {
   let sql = 'UPDATE users SET username=?, role=?, full_name=?, organization=? WHERE id=?';
   let params = [username, role, fullName, organization, id];
 
-  // ถ้ามีการส่ง password มาด้วย ให้แก้ไข password (ถ้าไม่มีให้ใช้ sql เดิม)
   if (password && password.trim() !== '') {
     sql = 'UPDATE users SET username=?, password=?, role=?, full_name=?, organization=? WHERE id=?';
     params = [username, password, role, fullName, organization, id];
@@ -187,7 +205,7 @@ app.put('/api/users/:id', (req, res) => {
   });
 });
 
-// 8. Delete User
+// 9. Delete User
 app.delete('/api/users/:id', (req, res) => {
   logRequest('DELETE', `/api/users/${req.params.id}`);
   const { id } = req.params;
