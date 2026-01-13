@@ -5,7 +5,7 @@ import waveimage from '../assets/mapwater.png';
 
 const STATION_LOCATIONS = {
   'เขื่อนภูมิพล': { set1: { top: '22%', left: '25%' }, set2: { top: '28%', left: '25%' } },
-  'เขื่อนสิริกิติ์': { set1: { top: '32%', left: '55%' }, set2: { top: '38%', left: '55%' } },
+  'เขื่อนสิริกิติ์': { set1: { top: '32%', left: '55%' }, set2: { top: '38%', left: '50%' } },
   'เขื่อนป่าสักฯ': { set1: { top: '57%', left: '45%' }, set2: { top: '63%', left: '45%' } },
   'เขื่อนอุบลรัตน์': { set1: { top: '37%', left: '75%' }, set2: { top: '43%', left: '75%' } }
 };
@@ -48,7 +48,7 @@ const VideoMapComponent = ({ mode = 'interactive', markers = [] }) => {
       {/* 🟢 ส่วนแสดงภาพ/วิดีโอ แผนที่ */}
       <div className="w-full h-full relative origin-center transition-transform duration-300 ease-out will-change-transform" style={{ transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})` }}>
         {mode === 'report' ? (
-           <img src={activeSlideData.image} alt={activeSlideData.region} className="absolute inset-0 w-full h-full object-contain opacity-90" />
+           <img src={activeSlideData.image} alt={activeSlideData.region} className="absolute inset-0 w-full h-full object-cover object-center print:object-fill" />
         ) : (
            <video key={activeSlideData.id} autoPlay loop muted playsInline className="absolute inset-0 w-full h-full object-contain pointer-events-none opacity-100 transition-opacity duration-500 animate-fade-in">
              <source src={activeSlideData.video} type="video/mp4" />
@@ -90,13 +90,6 @@ const VideoMapComponent = ({ mode = 'interactive', markers = [] }) => {
 
       {/* 🔵 ส่วนควบคุม UI (Layer บน) */}
       <div className="absolute inset-0 pointer-events-none z-10">
-        {/* หัวข้อด้านบน */}
-        <div className="absolute top-0 left-0 w-full p-4 bg-gradient-to-b from-black/60 to-transparent flex justify-between items-start">
-           <div className="flex items-center space-x-2 text-white">
-             {mode === 'interactive' && <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>}
-             <div><h3 className="font-bold text-lg">{activeSlideData.region}</h3><p className="text-xs opacity-80 font-mono">LIVE MONITORING SYSTEM</p></div>
-           </div>
-        </div>
 
         {/* ปุ่มลูกศร ซ้าย-ขวา */}
         <button onClick={handlePrev} className="absolute left-4 top-1/2 transform -translate-y-1/2 bg-black/30 hover:bg-black/60 text-white p-2 rounded-full pointer-events-auto transition-all hover:scale-110 print:hidden shadow-lg"><ChevronLeft className="w-8 h-8" /></button>
