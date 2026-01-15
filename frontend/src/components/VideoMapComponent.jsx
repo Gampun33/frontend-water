@@ -1,15 +1,100 @@
 import React, { useState, useRef } from 'react';
-import { ChevronLeft, ChevronRight, Plus, Minus } from 'lucide-react'; // เพิ่ม Plus, Minus
+import { ChevronLeft, ChevronRight, Plus, Minus } from 'lucide-react';
 import waveVideo from '../assets/mapwater.mp4';
 import waveimage from '../assets/mapwater.png';
+import damimage from '../assets/dams.png';
 
-const STATION_LOCATIONS = {
-  'เขื่อนภูมิพล': { set1: { top: '22%', left: '25%' }, set2: { top: '28%', left: '25%' } },
-  'เขื่อนสิริกิติ์': { set1: { top: '32%', left: '55%' }, set2: { top: '38%', left: '50%' } },
-  'เขื่อนป่าสักฯ': { set1: { top: '57%', left: '45%' }, set2: { top: '63%', left: '45%' } },
-  'เขื่อนอุบลรัตน์': { set1: { top: '37%', left: '75%' }, set2: { top: '43%', left: '75%' } }
+// --- 1. Component สำหรับ Overlay ---
+const WaterLevelOverlay = ({ percent, imageFrame }) => {
+  return (
+    <div className="relative w-[77px] h-[55px] pointer-events-auto group">
+      
+      {/* 🟦 ชั้นที่ 1 (ตัวน้ำ): ขยับขึ้นตามสั่ง! */}
+      <div 
+        className="absolute overflow-hidden bg-gray-900/20 rounded-b-md"
+        style={{ 
+          width: '64px',      // กำหนดความกว้างกล่องน้ำ
+          height: '36px',     // กำหนดความสูงรวมของกล่องน้ำ
+          left: '50%',        // จัดกลางแนวนอน
+          bottom: '13px',     // 👈 น้องปรับตัวเลขนี้เพื่อ "ดัน" กล่องน้ำขึ้น-ลง (A56 -> A50)
+          transform: 'translateX(-50%)', // ช่วยให้ left: 50% อยู่กลางเป๊ะ
+          zIndex: 0           // อยู่หลังรูป
+        }}
+      >
+        {/* ตัวน้ำข้างในที่สูงขึ้นตาม % */}
+        <div 
+          className="absolute bottom-0 w-full bg-blue-500/80 transition-all duration-1000"
+          style={{ height: `${percent}%` }}
+        />
+      </div>
+
+      {/* 🖼️ ชั้นที่ 2 (รูปขอบอ่าง): ล็อคอยู่ที่เดิมเป๊ะ! */}
+      <img 
+        src={imageFrame} 
+        className="absolute inset-0 w-full h-full object-contain z-10 pointer-events-none"
+        alt="Dam Frame"
+      />
+
+      {/* 📝 ชั้นที่ 3 (ตัวเลข): ขยับตามกล่องน้ำหรืออยู่ที่เดิมก็ได้ */}
+      <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none">
+        <span className="text-[10px] font-black text-white drop-shadow-md">
+          {Math.round(percent)}%
+        </span>
+      </div>
+    </div>
+  );
 };
 
+// --- 2. พิกัดสำหรับตัว Overlay ---
+const STATION_OVERLAYS = {
+  // 'เขื่อนภูมิพล': { top: '22%', left: '18%' },
+  // 'เขื่อนสิริกิติ์': { top: '32%', left: '62%' },
+  // 'เขื่อนป่าสักฯ': { top: '57%', left: '38%' },
+  // 'เขื่อนอุบลรัตน์': { top: '37%', left: '82%' }
+};
+
+const STATION_LOCATIONS = {
+   'เขื่อนภูมิพล': { set1: { top: '35%', left: '45%' }, set2: { top: '40%', left: '45%' } ,color: '#fff700' },
+   'เขื่อนสิริกิติ์': { set1: { top: '30%', left: '55%' }, set2: { top: '35%', left: '55%' } ,color: '#ef4444' },
+  'เขื่อนป่าสักฯ': { set1: { top: '65%', left: '60%' }, set2: { top: '70%', left: '60%' } ,color: '#ef4444' },
+  'เขื่อนอุบลรัตน์': { set1: { top: '37%', left: '75%' }, set2: { top: '43%', left: '75%' },color: '#ef4444'  },
+  'เขื่อนกิ่วลม': { set1: { top: '35%', left: '79%' }, set2: { top: '70%', left: '90%' } ,color: '#1500ff' },
+   'เขื่อนกิ่วคอหมา': { set1: { top: '22%', left: '50%' }, set2: { top: '27%', left: '50%' } ,color: '#ef4444' },
+   'อ่างเก็บน้ำแม่ฟ้า': { set1: { top: '23%', left: '52%' }, set2: { top: '28%', left: '52%' } ,color: '#ef4444' },
+   'อ่างเก็บน้ำแม่อาง': { set1: { top: '26%', left: '49%' }, set2: { top: '31%', left: '49%' },color: '#ef4444'  },
+   'อ่างเก็บน้ำห้วยทราย': { set1: { top: '27%', left: '47%' }, set2: { top: '32%', left: '47%' } ,color: '#ef4444' },
+   'เขื่อนแม่ขาม': { set1: { top: '28%', left: '51%' }, set2: { top: '33%', left: '51%' } ,color: '#ef4444' },
+   'เขื่อนแม่จาง': { set1: { top: '30%', left: '49%' }, set2: { top: '35%', left: '49%' } ,color: '#ef4444' },
+   'อ่างเก็บน้ำแม่ทะ': { set1: { top: '31%', left: '50%' }, set2: { top: '36%', left: '50%' } ,color: '#ef4444' },
+   'อ่างเก็บน้ำแม่ไฮ': { set1: { top: '29%', left: '46%' }, set2: { top: '34%', left: '46%' } ,color: '#ef4444' },
+   'อ่างเก็บน้ำแม่ธิ': { set1: { top: '32%', left: '48%' }, set2: { top: '37%', left: '48%' } ,color: '#ef4444' },
+   'อ่างเก็บน้ำแม่วะ': { set1: { top: '38%', left: '46%' }, set2: { top: '43%', left: '46%' } ,color: '#ef4444' },
+   'อ่างเก็บน้ำแม่ทาน': { set1: { top: '35%', left: '47%' }, set2: { top: '40%', left: '47%' },color: '#ef4444'  },
+   'อ่างเก็บน้ำห้วยหลวง': { set1: { top: '34%', left: '47%' }, set2: { top: '39%', left: '47%' } ,color: '#ef4444' },
+   'อ่างเก็บน้ำแม่เรียง': { set1: { top: '31%', left: '45%' }, set2: { top: '36%', left: '45%' } ,color: '#ef4444' },
+   'อ่างเก็บน้ำแม่ทก': { set1: { top: '36%', left: '48%' }, set2: { top: '41%', left: '48%' } ,color: '#ef4444' },
+   'อ่างเก็บน้ำห้วยสมัย': { set1: { top: '37%', left: '48%' }, set2: { top: '42%', left: '48%' } ,color: '#ef4444' },
+   'อ่างเก็บน้ำแม่นึง': { set1: { top: '24%', left: '45%' }, set2: { top: '29%', left: '45%' } ,color: '#ef4444' },
+   'อ่างเก็บน้ำแม่ค่อม': { set1: { top: '26%', left: '46%' }, set2: { top: '31%', left: '46%' } ,color: '#ef4444' },
+   'อ่างเก็บน้ำแม่เฟือง': { set1: { top: '25%', left: '46%' }, set2: { top: '30%', left: '46%' } ,color: '#ef4444' },
+   'อ่างเก็บน้ำแม่ต๋ำน้อย': { set1: { top: '27%', left: '46%' }, set2: { top: '32%', left: '46%' } ,color: '#ef4444' },
+   'อ่างเก็บน้ำแม่ไพร': { set1: { top: '28%', left: '47%' }, set2: { top: '33%', left: '47%' } ,color: '#ef4444' },
+   'อ่างเก็บน้ำห้วยหลวงวังวัว': { set1: { top: '24%', left: '48%' }, set2: { top: '29%', left: '48%' } ,color: '#ef4444' },
+   'อ่างเก็บน้ำแม่ทรายทายคำ': { set1: { top: '25%', left: '47%' }, set2: { top: '30%', left: '47%' },color: '#ef4444'  },
+   'อ่างเก็บน้ำแม่สัน': { set1: { top: '32%', left: '50%' }, set2: { top: '37%', left: '50%' } ,color: '#ef4444' },
+   'อ่างเก็บน้ำแม่ปอน': { set1: { top: '30%', left: '45%' }, set2: { top: '35%', left: '45%' } ,color: '#ef4444' },
+   'อ่างเก็บน้ำแม่ยาว': { set1: { top: '31%', left: '46%' }, set2: { top: '36%', left: '46%' },color: '#ef4444'  },
+   'อ่างเก็บน้ำห้วยเกี๋ยง': { set1: { top: '29%', left: '45%' }, set2: { top: '34%', left: '45%' },color: '#ef4444'  },
+   'อ่างเก็บน้ำแม่กึ๊ด': { set1: { top: '32%', left: '45%' }, set2: { top: '37%', left: '45%' },color: '#ef4444'  },
+   'อ่างเก็บน้ำแม่เลียงพัฒนา': { set1: { top: '33%', left: '45%' }, set2: { top: '38%', left: '45%' } ,color: '#ef4444' },
+   'อ่างเก็บน้ำแม่ต๋ำตอนล่าง': { set1: { top: '34%', left: '45%' }, set2: { top: '39%', left: '45%' } ,color: '#ef4444' },
+   'อ่างเก็บน้ำแม่อาบ': { set1: { top: '31%', left: '49%' }, set2: { top: '36%', left: '49%' } ,color: '#ef4444' },
+   'อ่างเก็บน้ำแม่พริก': { set1: { top: '40%', left: '45%' }, set2: { top: '45%', left: '45%' } ,color: '#ef4444' },
+   'อ่างเก็บน้ำแม่พริก(ผาวิ่งชู้)': { set1: { top: '41%', left: '45%' }, set2: { top: '46%', left: '45%' },color: '#ef4444'  },
+   'อ่างเก็บน้ำแม่ล้อหัก': { set1: { top: '42%', left: '45%' }, set2: { top: '47%', left: '45%' },color: '#1900ff'  }
+};
+
+// ... MAP_CAROUSEL_DATA คงเดิม ...
 const MAP_CAROUSEL_DATA = [
   { id: 1, region: 'ภาพรวมประเทศ (Overview)', video: waveVideo, image: waveimage, markers: [] },
   { id: 2, region: 'ภาคเหนือ (North)', video: 'https://cdn.pixabay.com/video/2022/10/05/133690-757657935_large.mp4', image: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&q=80&w=2000&h=1125', markers: [] },
@@ -41,11 +126,11 @@ const VideoMapComponent = ({ mode = 'interactive', markers = [] }) => {
   return (
     <div 
       ref={containerRef}
-      className={`relative overflow-hidden bg-gray-900 ${mode === 'report' ? 'w-full aspect-video rounded-lg border-2 border-gray-300 print:border-0 print:fixed print:top-0 print:left-0 print:w-screen print:h-screen print:z-[9999] print:m-0 print:rounded-none' : 'w-full mx-auto'} ${isDragging ? 'cursor-grabbing' : 'cursor-grab'} group touch-none`}
+      // 🟢 พี่สาวเปลี่ยน bg-gray-900 เป็น bg-white ให้แล้วนะจ๊ะ
+      className={`relative overflow-hidden bg-white ${mode === 'report' ? 'w-full aspect-video rounded-lg border-2 border-gray-300 print:border-0 print:fixed print:top-0 print:left-0 print:w-screen print:h-screen print:z-[9999] print:m-0 print:rounded-none' : 'w-full mx-auto'} ${isDragging ? 'cursor-grabbing' : 'cursor-grab'} group touch-none`}
       style={mode === 'interactive' ? { aspectRatio: '1842 / 1036', maxWidth: '100%' } : {}}
       onWheel={handleWheel} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp} onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}
     >
-      {/* 🟢 ส่วนแสดงภาพ/วิดีโอ แผนที่ */}
       <div className="w-full h-full relative origin-center transition-transform duration-300 ease-out will-change-transform" style={{ transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})` }}>
         {mode === 'report' ? (
            <img src={activeSlideData.image} alt={activeSlideData.region} className="absolute inset-0 w-full h-full object-cover object-center print:object-fill" />
@@ -56,75 +141,76 @@ const VideoMapComponent = ({ mode = 'interactive', markers = [] }) => {
         )}
 
         {/* Marker ข้อมูลน้ำ */}
-        <div className="absolute inset-0 pointer-events-none">
-          {currentSlide === 0 && markers.map((item, idx) => {
-              const locConfig = STATION_LOCATIONS[item.stationName] || {};
-              const fallbackTop = (idx * 13) % 60 + 20;
-              const fallbackLeft = (idx * 7) % 80 + 10;
-              const pos1 = locConfig.set1 || { top: `${fallbackTop}%`, left: `${fallbackLeft}%` };
-              const pos2 = locConfig.set2 || { top: `${fallbackTop + 6}%`, left: `${fallbackLeft}%` };
-              const calcPercent = (item.current && item.capacity) ? ((item.current / item.capacity) * 100).toFixed(2) : (item.percent || 0).toFixed(2);
-              
-              return (
-                <React.Fragment key={`dyn-${item.id}`}>
-                   <div className="absolute whitespace-nowrap text-center pointer-events-auto hover:scale-110 transition-transform" 
-                        style={{ top: pos1.top, left: pos1.left, transform: 'translate(-50%, -50%)' }}>
-                       <span className="font-bold text-white drop-shadow-[0_2px_2px_rgba(0,0,0,0.9)]" style={{ fontSize: '14px' }}>
-                           {item.capacity ? parseFloat(item.capacity).toLocaleString() : '-'} 
-                           <span className="ml-1 text-yellow-300" style={{ fontSize: '12px' }}>({calcPercent}%)</span>
-                       </span>
-                   </div>
-                   <div className="absolute whitespace-nowrap text-center pointer-events-auto hover:scale-110 transition-transform"
-                        style={{ top: pos2.top, left: pos2.left, transform: 'translate(-50%, -50%)' }}>
-                       <div className="font-bold text-white drop-shadow-[0_2px_2px_rgba(0,0,0,0.9)]" style={{ fontSize: '12px' }}>
-                           <span className="text-green-300">{item.inflow || '-'}</span>
-                           <span className="mx-1 text-white">/</span>
-                           <span className="text-orange-300">{item.outflow || '-'}</span>
-                       </div>
-                   </div>
-                </React.Fragment>
-              );
-          })}
-        </div>
+       <div className="absolute inset-0 pointer-events-none">
+  {currentSlide === 0 && markers.map((item, idx) => {
+      // 1. ดึง Config
+      const locConfig = STATION_LOCATIONS[item.stationName];
+      const overlayPos = STATION_OVERLAYS[item.stationName];
+
+      // 🟢 ตัดระบบสำรองออก: ถ้าไม่มีพิกัด ไม่ต้องแสดงผล
+      if (!locConfig) return null;
+
+      // 🟢 ดึงสีจาก Config (ถ้าไม่มีใช้สีขาว)
+      const customColor = locConfig.color || 'white';
+      
+      const calcPercent = (item.current && item.capacity) 
+          ? ((item.current / item.capacity) * 100).toFixed(2) 
+          : (item.percent || 0).toFixed(2);
+      
+      return (
+        <React.Fragment key={`dyn-${item.id}`}>
+           {/* 🌊 กล่อง Overlay ระดับน้ำ (ใช้ตำแหน่งจาก STATION_OVERLAYS หรือถ้าไม่มีก็อิงจาก set1) */}
+           {overlayPos && (
+             <div 
+               className="absolute pointer-events-auto"
+               style={{ top: overlayPos.top, left: overlayPos.left, transform: 'translate(-50%, -50%)' }}
+             >
+               <WaterLevelOverlay percent={calcPercent} imageFrame={damimage} />
+             </div>
+           )}
+
+           {/* 📝 ตัวเลขชุดที่ 1: ความจุ (เปลี่ยนสีตาม Tag) */}
+           <div className="absolute whitespace-nowrap text-center pointer-events-auto hover:scale-110 transition-all" 
+                style={{ top: locConfig.set1.top, left: locConfig.set1.left, transform: 'translate(-50%, -50%)' }}>
+               <span className="font-bold drop-shadow-[0_2px_2px_rgba(0,0,0,0.9)]" 
+                     style={{ fontSize: '14px', color: customColor }}> {/* 👈 ใส่สีตรงนี้ */}
+                   {item.capacity ? parseFloat(item.capacity).toLocaleString() : '-'} 
+                   <span className="ml-1 opacity-80" style={{ fontSize: '12px' }}>({calcPercent}%)</span>
+               </span>
+           </div>
+
+           {/* 📝 ตัวเลขชุดที่ 2: Inflow/Outflow */}
+           <div className="absolute whitespace-nowrap text-center pointer-events-auto hover:scale-110 transition-all"
+                style={{ top: locConfig.set2.top, left: locConfig.set2.left, transform: 'translate(-50%, -50%)' }}>
+               <div className="font-bold drop-shadow-[0_2px_2px_rgba(0,0,0,0.9)]" 
+                    style={{ fontSize: '12px', color: customColor }}> {/* 👈 ใส่สีตรงนี้ด้วย */}
+                   <span style={{ filter: 'brightness(1.5)' }}>{item.inflow || '-'}</span>
+                   <span className="mx-1 text-white">/</span>
+                   <span style={{ filter: 'brightness(0.8)' }}>{item.outflow || '-'}</span>
+               </div>
+           </div>
+        </React.Fragment>
+      );
+  })}
+</div>
       </div>
-
-      {/* 🔵 ส่วนควบคุม UI (Layer บน) */}
+      
+      {/* ส่วนควบคุม UI ด้านล่างคงเดิม */}
       <div className="absolute inset-0 pointer-events-none z-10">
-
-        {/* ปุ่มลูกศร ซ้าย-ขวา */}
-        <button onClick={handlePrev} className="absolute left-4 top-1/2 transform -translate-y-1/2 bg-black/30 hover:bg-black/60 text-white p-2 rounded-full pointer-events-auto transition-all hover:scale-110 print:hidden shadow-lg"><ChevronLeft className="w-8 h-8" /></button>
-        <button onClick={handleNext} className="absolute right-4 top-1/2 transform -translate-y-1/2 bg-black/30 hover:bg-black/60 text-white p-2 rounded-full pointer-events-auto transition-all hover:scale-110 print:hidden shadow-lg"><ChevronRight className="w-8 h-8" /></button>
-
-        {/* 🟡 ส่วนควบคุมด้านล่าง (Dots + Zoom) */}
+        <button onClick={handlePrev} className="absolute left-4 top-1/2 transform -translate-y-1/2 bg-black/30 hover:bg-black/60 text-white p-2 rounded-full pointer-events-auto print:hidden shadow-lg"><ChevronLeft className="w-8 h-8" /></button>
+        <button onClick={handleNext} className="absolute right-4 top-1/2 transform -translate-y-1/2 bg-black/30 hover:bg-black/60 text-white p-2 rounded-full pointer-events-auto print:hidden shadow-lg"><ChevronRight className="w-8 h-8" /></button>
         <div className="absolute bottom-6 left-0 w-full px-6 flex justify-between items-center print:hidden">
-          
-          {/* เว้นที่ว่างฝั่งซ้ายเพื่อให้จุดอยู่กลาง */}
           <div className="w-10"></div> 
-
-          {/* จุดบอกหน้า (Pagination Dots) - อยู่กึ่งกลาง */}
-          <div className="flex space-x-2 bg-black/30 p-2.5 rounded-full backdrop-blur-md border border-white/10 pointer-events-auto shadow-xl">
+          <div className="flex space-x-2 bg-black/30 p-2.5 rounded-full backdrop-blur-md border border-white/10 pointer-events-auto">
             {MAP_CAROUSEL_DATA.map((_, idx) => (
-              <button
-                key={idx}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setCurrentSlide(idx);
-                  setTransform({ x: 0, y: 0, scale: 1 });
-                }}
-                className={`h-2 rounded-full transition-all duration-300 ${
-                  currentSlide === idx 
-                    ? 'bg-blue-400 w-6 shadow-[0_0_10px_rgba(96,165,250,0.8)]' 
-                    : 'bg-white/40 w-2 hover:bg-white/70'
-                }`}
-                title={`ไปหน้า ${idx + 1}`}
+              <button key={idx} onClick={() => { setCurrentSlide(idx); setTransform({ x: 0, y: 0, scale: 1 }); }}
+                className={`h-2 rounded-full transition-all ${currentSlide === idx ? 'bg-blue-400 w-6 shadow-[0_0_10px_rgba(96,165,250,0.8)]' : 'bg-white/40 w-2 hover:bg-white/70'}`}
               />
             ))}
           </div>
-
-          {/* ปุ่ม Zoom - อยู่ฝั่งขวา */}
           <div className="flex flex-col space-y-2 pointer-events-auto">
-            <button onClick={() => handleZoom(0.5)} className="bg-white/90 p-2 rounded-lg shadow-lg hover:bg-white text-gray-700 transition active:scale-90" title="ซูมเข้า"><Plus className="w-5 h-5"/></button>
-            <button onClick={() => handleZoom(-0.5)} className="bg-white/90 p-2 rounded-lg shadow-lg hover:bg-white text-gray-700 transition active:scale-90" title="ซูมออก"><Minus className="w-5 h-5"/></button>
+            <button onClick={() => handleZoom(0.5)} className="bg-white/90 p-2 rounded-lg shadow-lg"><Plus className="w-5 h-5"/></button>
+            <button onClick={() => handleZoom(-0.5)} className="bg-white/90 p-2 rounded-lg shadow-lg"><Minus className="w-5 h-5"/></button>
           </div>
         </div>
       </div>
