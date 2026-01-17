@@ -147,5 +147,90 @@ export const MysqlService = {
         resolve({ success: true });
       }, 500);
     });
+  },
+  
+// --- 🌧️ ระบบข้อมูลฝน (Rain Reports) เพิ่มใหม่ตรงนี้เลยจ้า ---
+
+  // 1. ดึงข้อมูลฝนทั้งหมด
+  getRainReports: async () => {
+    const realData = await MysqlService.request('/rain-reports');
+    if (realData) return realData;
+
+    // Mock Mode: ถ้า MySQL ล่ม ให้ดึงจาก LocalStorage
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        const data = MysqlService._get('mysql_rain_reports') || [];
+        resolve(data.sort((a, b) => b.id - a.id));
+      }, 500);
+    });
+  },
+
+  // 2. บันทึกข้อมูลฝนใหม่ (ตัวที่น้องชายติด Error อยู่!)
+  createRainReport: async (payload) => {
+    const result = await MysqlService.request('/rain-reports', { 
+      method: 'POST', 
+      body: JSON.stringify(payload) 
+    });
+
+    if (result) {
+      console.log("✅ บันทึกข้อมูลฝนลง MySQL สำเร็จ!");
+      return result;
+    }
+
+    // Mock Mode: เก็บลง LocalStorage ถ้าติดต่อ Server ไม่ได้
+    console.warn("⚠️ บันทึกข้อมูลฝนลง MySQL ไม่ได้ กำลังเก็บใน Mock Mode...");
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        const currentData = MysqlService._get('mysql_rain_reports') || [];
+        const now = new Date();
+        const localTimestamp = now.toLocaleString('sv-SE', { timeZone: 'Asia/Bangkok' }).replace('T', ' ');
+        const newReport = {
+          id: Date.now(),
+          ...payload,
+          updated_at: localTimestamp, 
+          status: 'pending', 
+          created_at: localTimestamp
+        };
+        MysqlService._set('mysql_rain_reports', [...currentData, newReport]);
+        resolve(newReport);
+      }, 600);
+    });
+  },
+
+  // 3. อัปเดตข้อมูลฝน (สำหรับหน้าตรวจสอบ)
+  updateRainReport: async (id, payload) => {
+    const result = await MysqlService.request(`/rain-reports/${id}`, { 
+      method: 'PUT', 
+      body: JSON.stringify(payload) 
+    });
+
+    if (result) return result;
+
+    // Mock Mode
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        const currentData = MysqlService._get('mysql_rain_reports') || [];
+        const updatedData = currentData.map(item => item.id === id ? { ...item, ...payload } : item);
+        MysqlService._set('mysql_rain_reports', updatedData);
+        resolve({ success: true });
+      }, 500);
+    });
+  },
+
+  // 4. ลบข้อมูลฝน
+  deleteRainReport: async (id) => {
+    const result = await MysqlService.request(`/rain-reports/${id}`, { method: 'DELETE' });
+    if (result) return result;
+
+    // Mock Mode
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        const currentData = MysqlService._get('mysql_rain_reports') || [];
+        const filteredData = currentData.filter(item => item.id !== id);
+        MysqlService._set('mysql_rain_reports', filteredData);
+        resolve({ success: true });
+      }, 500);
+    });
   }
+
 };

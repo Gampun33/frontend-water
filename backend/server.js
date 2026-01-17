@@ -286,6 +286,101 @@ app.delete("/api/users/:id", (req, res) => {
   });
 });
 
+// --- 🔵 2.4 Rain Reports APIs (ระบบรายงานข้อมูลฝน) ---
+
+// 1. ดึงข้อมูลฝนทั้งหมด
+app.get("/api/rain-reports", (req, res) => {
+  logRequest("GET", "/api/rain-reports");
+
+  const sql = `SELECT * FROM rain_reports ORDER BY date DESC, created_at DESC`;
+
+  db.query(sql, (err, results) => {
+    if (err) return res.status(500).json({ error: err.message });
+
+    const formatted = results.map((row) => {
+      const d = new Date(row.date);
+      const localDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+      return {
+        ...row,
+        stationName: row.stationName, // คีย์ตรงกับ React
+        date: localDate,
+        rainAmount: parseFloat(row.rainAmount) || 0,
+        createdBy: row.createdBy,
+        status: row.status
+      };
+    });
+    res.json(formatted);
+  });
+});
+
+// 2. บันทึกข้อมูลฝนใหม่
+app.post("/api/rain-reports", (req, res) => {
+  logRequest("POST", "/api/rain-reports", req.body);
+
+  const {
+    stationName,
+    date,
+    rainAmount,
+    tambon,
+    amphoe,
+    province,
+    groupId,
+    createdBy
+  } = req.body;
+
+  const sql = `INSERT INTO rain_reports 
+    (stationName, date, rainAmount, tambon, amphoe, province, groupId, status, createdBy) 
+    VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?)`;
+
+  db.query(
+    sql,
+    [
+      stationName,
+      date,
+      rainAmount || 0,
+      tambon || "-",
+      amphoe || "-",
+      province || "ลำปาง",
+      groupId || "group-medium",
+      createdBy
+    ],
+    (err, result) => {
+      if (err) {
+        console.error("❌ INSERT Rain Error:", err.message);
+        return res.status(500).json({ error: err.message });
+      }
+      res.json({ success: true, id: result.insertId });
+    }
+  );
+});
+
+// 3. อัปเดตข้อมูลฝน (สำหรับหน้าตรวจสอบ/อนุมัติ)
+app.put("/api/rain-reports/:id", (req, res) => {
+  const { id } = req.params;
+  const { rainAmount, status } = req.body;
+
+  logRequest("PUT", `/api/rain-reports/${id}`, req.body);
+
+  const sql = `UPDATE rain_reports SET rainAmount=?, status=? WHERE id=?`;
+
+  db.query(sql, [rainAmount || 0, status, id], (err, result) => {
+    if (err) {
+      console.error("❌ UPDATE Rain Error:", err.message);
+      return res.status(500).json({ error: err.message });
+    }
+    res.json({ success: true });
+  });
+});
+
+// 4. ลบข้อมูลฝน
+app.delete("/api/rain-reports/:id", (req, res) => {
+  db.query("DELETE FROM rain_reports WHERE id = ?", [req.params.id], (err, result) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ success: true });
+  });
+});
+
 // --- 3. Start Server ---
 const PORT = 3001;
 app.listen(PORT, () => {
