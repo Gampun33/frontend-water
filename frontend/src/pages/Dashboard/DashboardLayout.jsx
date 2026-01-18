@@ -4,7 +4,7 @@ import {
   FileText, History, Home, Settings 
 } from 'lucide-react';
 
-// --- Import หน้าจอย่อยๆ ที่เราแยกไฟล์ไว้ ---
+// --- Import หน้าจอย่อยๆ ---
 import AddDataPage from './AddDataPage';
 import OperatorStatusPage from './OperatorStatusPage';
 import VerifyDataPage from './VerifyDataPage';
@@ -12,11 +12,11 @@ import UserManagementPage from './UserManagementPage';
 import DataReportPage from './DataReportPage';
 import ProfilePage from './ProfilePage';
 
-const DashboardLayout = ({ user, onLogout, onGoHome, waterData, refreshData, onUpdateUser }) => {
-  // กำหนดหน้าเริ่มต้น: Admin ให้ไปหน้าตรวจข้อมูล, Operator ให้ไปหน้าเพิ่มข้อมูล
+// 🟢 เพิ่ม rainData เข้ามาใน Props ของคอมโพเนนต์
+const DashboardLayout = ({ user, onLogout, onGoHome, waterData, rainData = [], refreshData, onUpdateUser }) => {
+  
   const [activeTab, setActiveTab] = useState(user.role === 'admin' ? 'verify' : 'add');
 
-  // Component ย่อยสำหรับเมนู Sidebar
   const SidebarItem = ({ icon: Icon, label, active, onClick }) => (
     <button 
       onClick={onClick} 
@@ -33,7 +33,6 @@ const DashboardLayout = ({ user, onLogout, onGoHome, waterData, refreshData, onU
 
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col md:flex-row print:bg-white print:block">
-      {/* สไตล์สำหรับการพิมพ์รายงาน */}
       <style>{`
         @media print { 
           .print\\:hidden { display: none !important; } 
@@ -42,7 +41,7 @@ const DashboardLayout = ({ user, onLogout, onGoHome, waterData, refreshData, onU
         }
       `}</style>
 
-      {/* --- Sidebar (แถบเมนูข้าง) --- */}
+      {/* --- Sidebar --- */}
       <aside className="w-full md:w-64 bg-white shadow-lg z-10 flex-shrink-0 flex flex-col h-screen sticky top-0 print:hidden">
         <div className="p-6 border-b bg-blue-50/50">
           <h2 className="font-bold text-gray-800 uppercase">
@@ -62,7 +61,6 @@ const DashboardLayout = ({ user, onLogout, onGoHome, waterData, refreshData, onU
         </div>
 
         <nav className="py-2 space-y-1 flex-1 overflow-y-auto">
-          {/* เมนูสำหรับทุกคน */}
           <SidebarItem 
             icon={Database} 
             label="เพิ่มข้อมูล" 
@@ -76,7 +74,6 @@ const DashboardLayout = ({ user, onLogout, onGoHome, waterData, refreshData, onU
             onClick={() => setActiveTab('status')} 
           />
           
-          {/* เมนูสำหรับ Admin เท่านั้น */}
           {user.role === 'admin' && (
             <>
               <SidebarItem 
@@ -122,20 +119,46 @@ const DashboardLayout = ({ user, onLogout, onGoHome, waterData, refreshData, onU
         </div>
       </aside>
 
-      {/* --- Main Content (พื้นที่แสดงหน้าย่อย) --- */}
+      {/* --- Main Content --- */}
       <main className="flex-1 p-6 overflow-y-auto h-screen bg-slate-50 print:bg-white print:p-0 print:h-auto print:overflow-visible">
         <div className="max-w-[1600px] mx-auto w-full print:max-w-none">
-           {activeTab === 'add' && <AddDataPage user={user} refreshData={refreshData} />}
-           {activeTab === 'status' && <OperatorStatusPage user={user} waterData={waterData} refreshData={refreshData} />}
-           {activeTab === 'verify' && <VerifyDataPage waterData={waterData} refreshData={refreshData} />}
-           {activeTab === 'users' && <UserManagementPage />}
-           {activeTab === 'report' && <DataReportPage waterData={waterData} />}
-           {activeTab === 'profile' && <ProfilePage user={user} onUpdateUser={onUpdateUser} />}
+            {/* 🟢 หน้าเพิ่มข้อมูล (รองรับทั้งน้ำและฝนในตัว) */}
+            {activeTab === 'add' && <AddDataPage user={user} refreshData={refreshData} />}
+            
+            {/* 🟢 หน้าติดตามสถานะ (ส่ง rainData ไปเพิ่ม) */}
+            {activeTab === 'status' && (
+              <OperatorStatusPage 
+                user={user} 
+                waterData={waterData} 
+                rainData={rainData} 
+                refreshData={refreshData} 
+              />
+            )}
+
+            {/* 🟢 หน้าตรวจข้อมูล Admin (ส่ง rainData ไปเพิ่มเพื่อให้ Admin ตรวจฝนได้) */}
+            {activeTab === 'verify' && (
+              <VerifyDataPage 
+                waterData={waterData} 
+                rainData={rainData} 
+                refreshData={refreshData} 
+              />
+            )}
+
+            {activeTab === 'users' && <UserManagementPage />}
+            
+            {/* 🟢 หน้ารายงานผล (ส่ง rainData ไปเพิ่มเพื่อออกรายงานฝน) */}
+            {activeTab === 'report' && (
+              <DataReportPage 
+                waterData={waterData} 
+                rainData={rainData} 
+              />
+            )}
+
+            {activeTab === 'profile' && <ProfilePage user={user} onUpdateUser={onUpdateUser} />}
         </div>
       </main>
     </div>
   );
 };
 
-// สำคัญมาก: ต้องมี export default เพื่อให้ไฟล์อื่นเรียกใช้ได้
 export default DashboardLayout;
