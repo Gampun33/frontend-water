@@ -48,7 +48,7 @@ const HomePage = ({ waterData, rainData = [] }) => { // 🟢 รับ rainData 
             <span className="flex items-center text-cyan-600 bg-cyan-50 px-2 py-1 rounded">ฝน: {latestRain.length} จุด</span>
           </div>
         </div>
-        <VideoMapComponent mode="interactive" markers={latestWater} />
+        <VideoMapComponent mode="interactive" markers={latestWater} rainMarkers={latestRain}/>
       </div>
 
       <div className="grid md:grid-cols-3 gap-6">

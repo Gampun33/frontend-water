@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { 
   LogOut, Database, CheckCircle, Users, 
-  FileText, History, Home, Settings 
+  FileText, History, Home, Settings,
+  LayoutDashboard // 🟢 1. เพิ่มไอคอน Dashboard
 } from 'lucide-react';
 
 // --- Import หน้าจอย่อยๆ ---
@@ -11,11 +12,13 @@ import VerifyDataPage from './VerifyDataPage';
 import UserManagementPage from './UserManagementPage';
 import DataReportPage from './DataReportPage';
 import ProfilePage from './ProfilePage';
+import DashboardChartPage from './DashboardChartPage'; // 🟢 2. Import หน้ากราฟที่เพิ่งสร้าง
 
 // 🟢 เพิ่ม rainData เข้ามาใน Props ของคอมโพเนนต์
 const DashboardLayout = ({ user, onLogout, onGoHome, waterData, rainData = [], refreshData, onUpdateUser }) => {
   
-  const [activeTab, setActiveTab] = useState(user.role === 'admin' ? 'verify' : 'add');
+  // 🟢 3. ปรับให้เปิดมาเจอหน้า Dashboard เป็นหน้าแรก (หรือจะแก้กลับเป็น logic เดิมก็ได้จ้ะ)
+  const [activeTab, setActiveTab] = useState('dashboard');
 
   const SidebarItem = ({ icon: Icon, label, active, onClick }) => (
     <button 
@@ -61,6 +64,15 @@ const DashboardLayout = ({ user, onLogout, onGoHome, waterData, rainData = [], r
         </div>
 
         <nav className="py-2 space-y-1 flex-1 overflow-y-auto">
+          
+          {/* 🟢 4. เพิ่มเมนู Dashboard ไว้บนสุด */}
+          <SidebarItem 
+            icon={LayoutDashboard} 
+            label="ภาพรวม (Dashboard)" 
+            active={activeTab === 'dashboard'} 
+            onClick={() => setActiveTab('dashboard')} 
+          />
+
           <SidebarItem 
             icon={Database} 
             label="เพิ่มข้อมูล" 
@@ -122,6 +134,15 @@ const DashboardLayout = ({ user, onLogout, onGoHome, waterData, rainData = [], r
       {/* --- Main Content --- */}
       <main className="flex-1 p-6 overflow-y-auto h-screen bg-slate-50 print:bg-white print:p-0 print:h-auto print:overflow-visible">
         <div className="max-w-[1600px] mx-auto w-full print:max-w-none">
+            
+            {/* 🟢 5. เพิ่มส่วนแสดงผลกราฟ Dashboard */}
+            {activeTab === 'dashboard' && (
+              <DashboardChartPage 
+                waterData={waterData} 
+                rainData={rainData} 
+              />
+            )}
+
             {/* 🟢 หน้าเพิ่มข้อมูล (รองรับทั้งน้ำและฝนในตัว) */}
             {activeTab === 'add' && <AddDataPage user={user} refreshData={refreshData} />}
             
