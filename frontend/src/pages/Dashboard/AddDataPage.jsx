@@ -69,7 +69,7 @@ const AddDataPage = ({ user, refreshData }) => {
     reader.readAsBinaryString(file);
   };
 
-  // --- 🟢 4. Logic ประมวลผลและบันทึกข้อมูลจาก Excel ---
+ // --- 🟢 4. Logic ประมวลผลและบันทึกข้อมูลจาก Excel (ฉบับอัปเกรด: มีระบบป้องกันไฟล์ผิด) ---
   const processExcelData = async (data) => {
     setIsSaving(true);
     let successCount = 0;
@@ -77,29 +77,54 @@ const AddDataPage = ({ user, refreshData }) => {
     const creatorName = user?.fullName || user?.username || 'System Import';
 
     try {
-        // วนลูปบันทึกทีละแถว (หรือจะแก้ Backend ให้รับเป็น Array ก็ได้ แต่วิธีนี้ง่ายสุดตอนนี้)
+        // 🛡️ 1. ตรวจสอบหัวตารางก่อน (Validation)
+        // เอาแถวแรกมาดูว่ามี key (ชื่อคอลัมน์) อะไรบ้าง
+        const firstRow = data[0]; 
+        const keys = Object.keys(firstRow);
+        
+        let requiredColumns = [];
+        let modeName = "";
+
+        if (reportMode === 'water') {
+            requiredColumns = ['ระดับน้ำ', 'waterLevel']; // เช็คว่ามีคำใดคำหนึ่งมั้ย
+            modeName = "ข้อมูลน้ำทั่วไป";
+        } else if (reportMode === 'rain') {
+            requiredColumns = ['ปริมาณฝน', 'rainAmount'];
+            modeName = "ปริมาณน้ำฝน";
+        } else if (reportMode === 'dam') {
+            requiredColumns = ['ปริมาณน้ำ', 'currentStorage'];
+            modeName = "ปริมาณน้ำในเขื่อน";
+        }
+
+        // เช็คว่าในไฟล์ มีคอลัมน์ที่จำเป็นไหม (อย่างน้อย 1 อัน)
+        const hasValidColumn = requiredColumns.some(col => keys.includes(col));
+
+        if (!hasValidColumn) {
+            alert(`❌ ไฟล์ไม่ถูกต้อง!\n\nคุณกำลังอยู่โหมด: "${modeName}"\nแต่ไฟล์ที่อัปโหลดไม่มีคอลัมน์: ${requiredColumns[0]}\n\nกรุณาตรวจสอบไฟล์ หรือโหลด Template ใหม่`);
+            setIsSaving(false); // ยกเลิกการบันทึก
+            return; // ⛔ จบการทำงานทันที
+        }
+
+        // ----------------------------------------
+        // ถ้าผ่านด่านตรวจ ก็ลุยต่อตามปกติ...
+        // ----------------------------------------
+
         for (const row of data) {
             try {
-                // Mapping หัวตาราง Excel -> ตัวแปร (ต้องตรงกับไฟล์ Excel ของน้องนะ)
-                // คาดหวังหัวตาราง: ชื่อสถานี, วันที่, ...
-                
                 const commonData = {
                     stationName: row['ชื่อสถานี'] || row['station'] || '',
                     date: excelDateToJSDate(row['วันที่'] || row['date']),
                     createdBy: creatorName,
-                    province: 'ลำปาง' // Default
+                    province: 'ลำปาง'
                 };
 
-                // ข้ามถ้าระบุชื่อสถานีไม่ได้
                 if (!commonData.stationName) continue;
 
                 let payload = {};
                 let result = null;
 
                 if (reportMode === 'water') {
-                    // หาข้อมูลประกอบ (อำเภอ/ตำบล) จาก Config
                     const s = STATION_DATA.find(x => x.name === commonData.stationName);
-                    
                     payload = {
                         ...commonData,
                         waterLevel: row['ระดับน้ำ'] || row['waterLevel'] || "",
@@ -117,7 +142,7 @@ const AddDataPage = ({ user, refreshData }) => {
                         ...commonData,
                         rainAmount: row['ปริมาณฝน'] || row['rain'] || "",
                         tambon: s?.tambon || "-",
-                        amphoe: s?.amphoe || commonData.stationName, // กรณีฝนบางทีใช้ชื่ออำเภอเลย
+                        amphoe: s?.amphoe || commonData.stationName,
                     };
                     result = await MysqlService.createRainReport(payload);
                 }
@@ -127,7 +152,7 @@ const AddDataPage = ({ user, refreshData }) => {
                         ...commonData,
                         currentStorage: row['ปริมาณน้ำ'] || row['current'] || "",
                         usableStorage: row['น้ำใช้การ'] || row['usable'] || "",
-                        capacity: s?.capacity || "" // ดึงความจุจาก Config อัตโนมัติ
+                        capacity: s?.capacity || ""
                     };
                     result = await MysqlService.createDamReport(payload);
                 }
