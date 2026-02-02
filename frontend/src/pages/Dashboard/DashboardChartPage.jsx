@@ -1,30 +1,43 @@
 import React, { useMemo } from 'react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend, ReferenceLine
+  PieChart, Pie, Cell, Legend, ReferenceLine, AreaChart, Area
 } from 'recharts';
-import { CloudRain, Droplets, AlertTriangle, Activity, MapPin, CalendarClock } from 'lucide-react';
+import { CloudRain, Droplets, Activity, MapPin, CalendarClock, Building2 } from 'lucide-react';
 
-// --- Configuration ---
-const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
-const RADIAN = Math.PI / 180;
+// --- Helper: Logic ดึงข้อมูลล่าสุด (เหมือนหน้า Home) ---
+const getLatestApprovedData = (data) => {
+    if (!data) return [];
+    const approved = data.filter(d => d.status === 'approved');
+    const latestMap = {};
+    approved.forEach(item => {
+      const currentDate = new Date(item.updated_at || item.date).getTime();
+      const name = item.stationName || item.station_name; 
+      if (!latestMap[name] || currentDate > new Date(latestMap[name].updated_at || latestMap[name].date).getTime()) {
+        latestMap[name] = { ...item, stationName: name }; 
+      }
+    });
+    return Object.values(latestMap);
+};
 
-// Component Tooltip สวยๆ (Custom Tooltip)
+// Component Tooltip สวยๆ
 const CustomTooltip = ({ active, payload, label, unit = "" }) => {
   if (active && payload && payload.length) {
+    const data = payload[0].payload;
     return (
-      <div className="bg-white p-3 border border-slate-100 shadow-xl rounded-lg text-sm">
-        <p className="font-bold text-slate-700 mb-1">{label}</p>
+      <div className="bg-white p-3 border border-slate-100 shadow-xl rounded-lg text-xs z-50">
+        <p className="font-bold text-slate-700 mb-1">{data.fullStationName || data.name}</p>
         <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: payload[0].fill || payload[0].color }}></span>
+            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: payload[0].fill || payload[0].stroke }}></span>
             <span className="text-slate-500">{payload[0].name}:</span>
             <span className="font-mono font-bold text-slate-800">
                 {Number(payload[0].value).toFixed(2)} {unit}
             </span>
         </div>
-        {payload[0].payload.fullStationName && (
-            <p className="text-[10px] text-slate-400 mt-2 border-t pt-1">
-                📍 {payload[0].payload.fullStationName}
+        {/* แสดงรายละเอียดเพิ่มเติมถ้ามี */}
+        {data.capacity && (
+            <p className="text-[10px] text-slate-400 mt-1">
+                ความจุ: {Number(data.capacity).toLocaleString()} ล้าน ลบ.ม.
             </p>
         )}
       </div>
@@ -33,20 +46,26 @@ const CustomTooltip = ({ active, payload, label, unit = "" }) => {
   return null;
 };
 
-const DashboardChartPage = ({ waterData = [], rainData = [] }) => {
+const DashboardChartPage = ({ waterData = [], rainData = [], damData = [] }) => {
 
-  // --- 1. Data Processing for Rain Chart (Dynamic Colors) ---
+  // 1. เตรียมข้อมูล: กรองเอาเฉพาะล่าสุด
+  const latestRain = useMemo(() => getLatestApprovedData(rainData), [rainData]);
+  const latestDam = useMemo(() => getLatestApprovedData(damData), [damData]);
+  const latestWater = useMemo(() => getLatestApprovedData(waterData), [waterData]);
+
+  // --- 2. Data for Rain Chart (Bar) ---
   const rainChartData = useMemo(() => {
-    return rainData
+    return latestRain
       .map(item => {
         const rawName = item.stationName || "";
         const shortName = rawName.replace('อำเภอ', '').replace('ลำปาง', '').replace('ต.', '').trim();
         const amount = parseFloat(item.rainAmount || 0);
         
-        // กำหนดสีตามความรุนแรง
-        let barColor = "#10b981"; // ปกติ (เขียว)
-        if (amount > 35 && amount <= 90) barColor = "#f59e0b"; // ปานกลาง (ส้ม)
-        if (amount > 90) barColor = "#ef4444"; // หนัก (แดง)
+        // สีตามเกณฑ์ฝน
+        let barColor = "#3b82f6"; // ฟ้า (เล็กน้อย)
+        if (amount > 10) barColor = "#10b981"; // เขียว (ปานกลาง)
+        if (amount > 35) barColor = "#f59e0b"; // ส้ม (หนัก)
+        if (amount > 90) barColor = "#ef4444"; // แดง (หนักมาก)
 
         return {
           name: shortName,
@@ -55,30 +74,52 @@ const DashboardChartPage = ({ waterData = [], rainData = [] }) => {
           color: barColor
         };
       })
-      .sort((a, b) => b.rain - a.rain)
-      .slice(0, 10);
-  }, [rainData]);
+      .sort((a, b) => b.rain - a.rain) // เรียงมากไปน้อย
+      .slice(0, 10); // เอาแค่ Top 10
+  }, [latestRain]);
 
-  // --- 2. Data Processing for Dam Chart ---
+  // --- 3. Data for Dam Chart (Pie) ---
   const damChartData = useMemo(() => {
-    return waterData.map(item => {
+    return latestDam.map(item => {
       const rawName = item.stationName || "ไม่ระบุ";
       const shortName = rawName.replace('เขื่อน', '').replace('อ่างเก็บน้ำ', '').trim();
+      const current = parseFloat(item.currentStorage || item.current_storage || 0);
+      const capacity = parseFloat(item.capacity || 100);
+      const percent = (current / capacity) * 100;
+
+      // สีตามเกณฑ์เขื่อน
+      let cellColor = "#f59e0b"; // ส้ม (<30% น้อย)
+      if (percent >= 30) cellColor = "#10b981"; // เขียว (ปกติ)
+      if (percent >= 50) cellColor = "#3b82f6"; // ฟ้า (ดี)
+      if (percent >= 80) cellColor = "#ef4444"; // แดง (วิกฤต/ล้น)
+
       return {
         name: shortName,
-        value: parseFloat(item.percent || 0),
-        capacity: parseFloat(item.capacity || 0),
-        current: parseFloat(item.current || 0)
+        fullStationName: rawName,
+        value: percent,
+        capacity: capacity,
+        current: current,
+        color: cellColor
       };
-    }).sort((a, b) => b.value - a.value); // เรียงจากเปอร์เซ็นต์เยอะสุด
-  }, [waterData]);
+    }).sort((a, b) => b.value - a.value); // เรียง % เยอะสุดขึ้นก่อน
+  }, [latestDam]);
 
-  // --- 3. Stat Calculations ---
-  const heavyRainCount = rainData.filter(d => parseFloat(d.rainAmount) > 35).length;
-  const criticalRainCount = rainData.filter(d => parseFloat(d.rainAmount) > 90).length;
-  
-  const avgDamLevel = waterData.length > 0 
-    ? (waterData.reduce((acc, curr) => acc + (parseFloat(curr.percent) || 0), 0) / waterData.length).toFixed(1)
+  // --- 4. Data for Water Level (Area) ---
+  const waterLevelData = useMemo(() => {
+      return latestWater.map(item => ({
+          name: item.stationName.replace("สถานี", "").trim(),
+          fullStationName: item.stationName,
+          level: parseFloat(item.waterLevel || 0)
+      })).slice(0, 10);
+  }, [latestWater]);
+
+  // --- Stat Calculations ---
+  const avgDamLevel = latestDam.length > 0 
+    ? (latestDam.reduce((acc, curr) => {
+        const cap = parseFloat(curr.capacity || 1);
+        const cur = parseFloat(curr.currentStorage || curr.current_storage || 0);
+        return acc + ((cur/cap)*100);
+      }, 0) / latestDam.length).toFixed(1)
     : 0;
 
   return (
@@ -102,71 +143,10 @@ const DashboardChartPage = ({ waterData = [], rainData = [] }) => {
                 <CalendarClock size={12} /> {new Date().toLocaleDateString('th-TH', { hour: '2-digit', minute: '2-digit'})}
              </p>
            </div>
-           <span className="h-8 w-[1px] bg-slate-200 mx-2 hidden sm:block"></span>
            <span className="bg-green-100 text-green-700 text-xs font-bold px-3 py-1.5 rounded-full flex items-center gap-1 animate-pulse">
              <span className="w-2 h-2 bg-green-500 rounded-full"></span> Live
            </span>
         </div>
-      </div>
-
-      {/* 🟢 Section 1: Stat Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-        
-        {/* Card 1: จุดตรวจฝน */}
-        <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-100 relative overflow-hidden group hover:shadow-md transition-all">
-          <div className="absolute right-0 top-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-            <CloudRain size={80} className="text-blue-600" />
-          </div>
-          <div className="flex items-start justify-between relative z-10">
-             <div>
-                <p className="text-xs text-slate-500 uppercase font-bold tracking-wider mb-1">จุดตรวจวัดฝน (Stations)</p>
-                <h3 className="text-3xl font-extrabold text-slate-800">{rainData.length}</h3>
-                <p className="text-xs text-slate-400 mt-1">ครอบคลุมทั้งจังหวัด</p>
-             </div>
-          </div>
-        </div>
-
-        {/* Card 2: พื้นที่เตือนภัย */}
-        <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-100 relative overflow-hidden group hover:shadow-md transition-all">
-          <div className="absolute right-0 top-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-            <AlertTriangle size={80} className={heavyRainCount > 0 ? "text-orange-500" : "text-green-500"} />
-          </div>
-          <div className="flex items-start justify-between relative z-10">
-             <div>
-                <p className="text-xs text-slate-500 uppercase font-bold tracking-wider mb-1">จุดเฝ้าระวังน้ำหลาก</p>
-                <div className="flex items-baseline gap-2">
-                    <h3 className={`text-3xl font-extrabold ${heavyRainCount > 0 ? "text-orange-500" : "text-green-600"}`}>
-                        {heavyRainCount}
-                    </h3>
-                    {criticalRainCount > 0 && (
-                        <span className="text-xs font-bold text-red-500 bg-red-50 px-2 py-0.5 rounded-md">
-                           วิกฤต {criticalRainCount}
-                        </span>
-                    )}
-                </div>
-                <p className="text-xs text-slate-400 mt-1">
-                    {heavyRainCount > 0 ? "พบปริมาณฝนสะสมสูง > 35มม." : "สถานการณ์ปกติ"}
-                </p>
-             </div>
-          </div>
-        </div>
-
-        {/* Card 3: ปริมาณน้ำรวม */}
-        <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-100 relative overflow-hidden group hover:shadow-md transition-all">
-          <div className="absolute right-0 top-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-            <Droplets size={80} className="text-cyan-600" />
-          </div>
-          <div className="flex items-start justify-between relative z-10">
-             <div>
-                <p className="text-xs text-slate-500 uppercase font-bold tracking-wider mb-1">ปริมาณน้ำในเขื่อนเฉลี่ย</p>
-                <h3 className="text-3xl font-extrabold text-cyan-700">{avgDamLevel}%</h3>
-                <div className="w-24 h-1.5 bg-slate-100 rounded-full mt-2 overflow-hidden">
-                    <div className="h-full bg-cyan-500 rounded-full" style={{ width: `${Math.min(avgDamLevel, 100)}%` }}></div>
-                </div>
-             </div>
-          </div>
-        </div>
-
       </div>
 
       {/* 🟢 Section 2: Graphs */}
@@ -174,24 +154,29 @@ const DashboardChartPage = ({ waterData = [], rainData = [] }) => {
         
         {/* 📊 Graph 1: Bar Chart (Rain) */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col">
-          <div className="mb-6">
-            <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2">
-              <CloudRain size={20} className="text-blue-500" /> 
-              10 อันดับปริมาณฝนสูงสุด
-            </h3>
-            <p className="text-xs text-slate-500">หน่วย: มิลลิเมตร (mm.) | สีแท่งกราฟบ่งบอกระดับความรุนแรง</p>
+          <div className="mb-6 flex justify-between items-start">
+            <div>
+                <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2">
+                <CloudRain size={20} className="text-cyan-500" /> 
+                10 อันดับปริมาณฝนสูงสุด
+                </h3>
+                <p className="text-xs text-slate-500">หน่วย: มิลลิเมตร (mm.) | สีแดง = วิกฤต (&gt;90 มม.)</p>
+            </div>
           </div>
           
-          <div className="flex-1 min-h-[350px]">
+          <div className="flex-1 min-h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={rainChartData} margin={{ top: 20, right: 20, left: -10, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                 <XAxis 
                   dataKey="name" 
-                  tick={{ fontSize: 11, fill: '#64748b' }} 
+                  tick={{ fontSize: 10, fill: '#64748b' }} 
                   axisLine={false}
                   tickLine={false}
                   interval={0}
+                  angle={-15}
+                  textAnchor="end"
+                  height={50}
                 />
                 <YAxis 
                   tick={{ fontSize: 11, fill: '#64748b' }} 
@@ -200,11 +185,10 @@ const DashboardChartPage = ({ waterData = [], rainData = [] }) => {
                 />
                 <Tooltip content={<CustomTooltip unit="mm." />} cursor={{ fill: '#f8fafc' }} />
                 
-                {/* เส้นเตือนภัย */}
-                <ReferenceLine y={35} stroke="#f59e0b" strokeDasharray="3 3" label={{ position: 'right', value: 'เฝ้าระวัง (35)', fill: '#f59e0b', fontSize: 10 }} />
-                <ReferenceLine y={90} stroke="#ef4444" strokeDasharray="3 3" label={{ position: 'right', value: 'วิกฤต (90)', fill: '#ef4444', fontSize: 10 }} />
+                <ReferenceLine y={35} stroke="#f59e0b" strokeDasharray="3 3" />
+                <ReferenceLine y={90} stroke="#ef4444" strokeDasharray="3 3" />
 
-                <Bar dataKey="rain" radius={[6, 6, 0, 0]} animationDuration={1000}>
+                <Bar dataKey="rain" name="ปริมาณฝน" radius={[6, 6, 0, 0]} animationDuration={1000}>
                     {rainChartData.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
@@ -214,21 +198,20 @@ const DashboardChartPage = ({ waterData = [], rainData = [] }) => {
           </div>
         </div>
 
-        {/* 🍰 Graph 2: Donut Chart (Dam) */}
+        {/* 🍰 Graph 2: Pie Chart (Dam) - ใช้ damData */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col">
           <div className="mb-6">
             <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2">
-              <Droplets size={20} className="text-cyan-500" /> 
-              สัดส่วนน้ำในอ่างเก็บน้ำ (%)
+              <Building2 size={20} className="text-indigo-500" /> 
+              สัดส่วนน้ำในเขื่อน (% ความจุ)
             </h3>
-            <p className="text-xs text-slate-500">เทียบปริมาณน้ำปัจจุบันกับความจุอ่าง</p>
+            <p className="text-xs text-slate-500">สีแดง = น้ำมาก (&gt;80%) | สีส้ม = น้ำน้อย (&lt;30%)</p>
           </div>
 
-          <div className="flex-1 min-h-[350px] relative">
-            {/* ตัวเลขตรงกลางโดนัท */}
+          <div className="flex-1 min-h-[300px] relative">
             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                 <p className="text-sm text-slate-400 font-medium">เฉลี่ยรวม</p>
-                <p className="text-4xl font-extrabold text-slate-800">{avgDamLevel}%</p>
+                <p className={`text-4xl font-extrabold ${avgDamLevel > 80 ? 'text-red-500' : 'text-slate-800'}`}>{avgDamLevel}%</p>
             </div>
 
             <ResponsiveContainer width="100%" height="100%">
@@ -237,18 +220,14 @@ const DashboardChartPage = ({ waterData = [], rainData = [] }) => {
                   data={damChartData}
                   cx="50%"
                   cy="50%"
-                  innerRadius={80} // รูกว้างขึ้นให้ดูโมเดิร์น
-                  outerRadius={110}
-                  paddingAngle={4}
+                  innerRadius={75}
+                  outerRadius={105}
+                  paddingAngle={3}
                   dataKey="value"
                   cornerRadius={6}
                 >
                   {damChartData.map((entry, index) => (
-                    <Cell 
-                        key={`cell-${index}`} 
-                        fill={entry.value > 80 ? '#3b82f6' : entry.value > 50 ? '#10b981' : '#f59e0b'} 
-                        stroke="none"
-                    />
+                    <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
                   ))}
                 </Pie>
                 <Tooltip content={<CustomTooltip unit="%" />} />
@@ -261,6 +240,34 @@ const DashboardChartPage = ({ waterData = [], rainData = [] }) => {
               </PieChart>
             </ResponsiveContainer>
           </div>
+        </div>
+
+        {/* 🌊 Graph 3: Area Chart (Water Level) - เพิ่มใหม่สำหรับแม่น้ำ */}
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col lg:col-span-2">
+            <div className="mb-6">
+                <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2">
+                <Droplets size={20} className="text-blue-500" /> 
+                ระดับน้ำท่า (River Levels)
+                </h3>
+                <p className="text-xs text-slate-500">เปรียบเทียบระดับน้ำในแม่น้ำสายหลัก (เมตร รทก.)</p>
+            </div>
+            <div className="flex-1 min-h-[250px]">
+                <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={waterLevelData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                        <defs>
+                            <linearGradient id="colorLevel" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.4}/>
+                                <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                            </linearGradient>
+                        </defs>
+                        <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                        <YAxis tick={{ fontSize: 11 }} />
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                        <Tooltip content={<CustomTooltip unit="ม." />} />
+                        <Area type="monotone" dataKey="level" name="ระดับน้ำ" stroke="#2563eb" fillOpacity={1} fill="url(#colorLevel)" />
+                    </AreaChart>
+                </ResponsiveContainer>
+            </div>
         </div>
 
       </div>
