@@ -1,18 +1,35 @@
 import React, { useState } from 'react';
-import { CheckCircle, Edit, User, Calendar, ArrowLeft, ArrowDownCircle, ArrowUpCircle, Droplets, CloudRain } from 'lucide-react';
+import { CheckCircle, Edit, User, Calendar, ArrowLeft, ArrowDownCircle, ArrowUpCircle, Droplets, CloudRain, Building2, Database, Activity } from 'lucide-react';
 import { MysqlService } from '../../services/mysqlService';
 import { getBangkokDate } from '../../utils/helpers';
 
-const VerifyDataPage = ({ waterData = [], rainData = [], refreshData }) => {
+const VerifyDataPage = ({ waterData = [], rainData = [], damData = [], refreshData }) => {
   const [viewMode, setViewMode] = useState('list');
-  const [activeTab, setActiveTab] = useState('water'); // 🟢 'water' หรือ 'rain'
+  const [activeTab, setActiveTab] = useState('water'); // 'water', 'rain', 'dam'
   const [editData, setEditData] = useState(null);
   const [selectedDate, setSelectedDate] = useState(getBangkokDate());
 
-  // 🔍 กรองข้อมูลตาม Tab และ วันที่เลือก
-  const displayData = (activeTab === 'water' ? waterData : rainData).filter(item => 
+  // 🟢 แก้ไข Logic การกรอง: กลับมาใช้ getBangkokDate เพื่อความชัวร์ (ข้อมูลจะแสดงครบ)
+  const displayData = (
+      activeTab === 'water' ? waterData : 
+      activeTab === 'rain' ? rainData : 
+      damData
+  ).filter(item => 
     getBangkokDate(item.updated_at || item.date) === selectedDate
   );
+
+  // ฟังก์ชันช่วยแสดงวันที่แบบ YYYY-MM-DD (ตัดเวลาทิ้ง)
+  const formatDateDisplay = (dateString) => {
+    if (!dateString) return '-';
+    // ถ้าเป็น ISO String (มี T) ให้ตัด, ถ้าไม่มีก็คืนค่าเดิม, ถ้าเป็น Date Object ให้แปลง
+    try {
+        const d = new Date(dateString);
+        // แปลงเป็น YYYY-MM-DD แบบไม่เพี้ยนตาม Timezone
+        return d.toISOString().split('T')[0];
+    } catch (e) {
+        return dateString.toString().split('T')[0];
+    }
+  };
 
   const handleEditClick = (item) => { 
     setEditData(item); 
@@ -22,21 +39,14 @@ const VerifyDataPage = ({ waterData = [], rainData = [], refreshData }) => {
   const handleUpdate = async (status) => {
     try {
       if (activeTab === 'water') {
-        // อัปเดตข้อมูลน้ำ
-        await MysqlService.updateReport(editData.id, { 
-          ...editData, 
-          status,
-          current: parseFloat(editData.waterLevel)
-        });
-      } else {
-        // 🌧️ อัปเดตข้อมูลฝน
-        await MysqlService.updateRainReport(editData.id, { 
-          ...editData, 
-          status 
-        });
+        await MysqlService.updateReport(editData.id, { ...editData, status, current: parseFloat(editData.waterLevel) });
+      } else if (activeTab === 'rain') {
+        await MysqlService.updateRainReport(editData.id, { ...editData, status });
+      } else if (activeTab === 'dam') {
+        await MysqlService.updateDamReport(editData.id, { ...editData, status });
       }
       
-      alert(`อัปเดตสถานะข้อมูล${activeTab === 'water' ? 'น้ำ' : 'ฝน'}เป็น ${status} เรียบร้อย`);
+      alert(`อัปเดตสถานะข้อมูลเรียบร้อย (${status})`);
       refreshData();
       setViewMode('list');
     } catch (e) {
@@ -53,14 +63,14 @@ const VerifyDataPage = ({ waterData = [], rainData = [], refreshData }) => {
             <ArrowLeft className="w-5 h-5" />
           </button>
           <h2 className="text-2xl font-bold text-gray-800">
-            แก้ไขและอนุมัติข้อมูล{activeTab === 'water' ? 'น้ำ' : 'ฝน'}
+            ตรวจสอบข้อมูล: {activeTab === 'water' ? 'น้ำทั่วไป' : activeTab === 'rain' ? 'ฝน' : 'เขื่อน'}
           </h2>
         </div>
 
         <div className="max-w-3xl mx-auto space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-gray-50 p-6 rounded-xl border border-gray-200">
               <div className="md:col-span-2">
-                <label className="block text-sm font-bold text-gray-600 mb-1 uppercase tracking-wider">สถานี</label>
+                <label className="block text-sm font-bold text-gray-600 mb-1 uppercase tracking-wider">สถานี / พื้นที่</label>
                 <input type="text" value={editData.stationName} disabled className="w-full px-4 py-2 border rounded-lg bg-white text-blue-900 font-bold shadow-sm" />
               </div>
 
@@ -72,9 +82,8 @@ const VerifyDataPage = ({ waterData = [], rainData = [], refreshData }) => {
                 </div>
               </div>
 
-              {/* 🟢 ส่วนแก้ไขข้อมูลแยกตามประเภท */}
               <div className="md:col-span-2">
-                {activeTab === 'water' ? (
+                {activeTab === 'water' && (
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">ระดับน้ำ (ม.)</label>
@@ -89,10 +98,25 @@ const VerifyDataPage = ({ waterData = [], rainData = [], refreshData }) => {
                       <input type="number" value={editData.outflow} onChange={(e) => setEditData({...editData, outflow: e.target.value})} className="w-full px-4 py-2 border border-orange-200 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none font-mono text-orange-700" />
                     </div>
                   </div>
-                ) : (
+                )}
+
+                {activeTab === 'rain' && (
                   <div className="bg-cyan-50 p-4 rounded-lg border border-cyan-200">
                     <label className="block text-sm font-bold text-cyan-800 mb-2 flex items-center"><CloudRain className="w-4 h-4 mr-1"/> ปริมาณฝน (มม.)</label>
                     <input type="number" value={editData.rainAmount} onChange={(e) => setEditData({...editData, rainAmount: e.target.value})} className="w-full px-4 py-3 border-2 border-cyan-200 rounded-lg focus:ring-2 focus:ring-cyan-500 outline-none font-mono text-xl text-cyan-800 font-bold" />
+                  </div>
+                )}
+
+                {activeTab === 'dam' && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-indigo-50 p-4 rounded-xl border border-indigo-100">
+                    <div>
+                        <label className="block text-sm font-bold text-indigo-800 mb-1 flex items-center"><Database className="w-4 h-4 mr-1"/> ปริมาณน้ำปัจจุบัน</label>
+                        <input type="number" value={editData.currentStorage} onChange={(e) => setEditData({...editData, currentStorage: e.target.value})} className="w-full px-4 py-2 border border-indigo-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none font-mono font-bold" />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-bold text-green-800 mb-1 flex items-center"><Activity className="w-4 h-4 mr-1"/> น้ำใช้การได้</label>
+                        <input type="number" value={editData.usableStorage} onChange={(e) => setEditData({...editData, usableStorage: e.target.value})} className="w-full px-4 py-2 border border-green-200 rounded-lg focus:ring-2 focus:ring-green-500 outline-none font-mono font-bold text-green-700" />
+                    </div>
                   </div>
                 )}
               </div>
@@ -102,7 +126,7 @@ const VerifyDataPage = ({ waterData = [], rainData = [], refreshData }) => {
                 <div className={`px-4 py-2 rounded-lg font-bold inline-block shadow-sm ${
                    editData.status === 'approved' ? 'bg-green-100 text-green-700' : 
                    editData.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'
-                }`}>{editData.status.toUpperCase()}</div>
+                }`}>{editData.status ? editData.status.toUpperCase() : 'PENDING'}</div>
               </div>
           </div>
 
@@ -126,13 +150,15 @@ const VerifyDataPage = ({ waterData = [], rainData = [], refreshData }) => {
           </h2>
           
           <div className="flex items-center mt-3 gap-3">
-            {/* 🟢 ปุ่มสลับ Tab น้ำ/ฝน */}
             <div className="flex bg-gray-100 p-1 rounded-xl border border-gray-200">
               <button onClick={() => setActiveTab('water')} className={`flex items-center px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'water' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-blue-600'}`}>
                 <Droplets className="w-4 h-4 mr-1" /> น้ำ
               </button>
               <button onClick={() => setActiveTab('rain')} className={`flex items-center px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'rain' ? 'bg-white text-cyan-600 shadow-sm' : 'text-gray-500 hover:text-cyan-600'}`}>
                 <CloudRain className="w-4 h-4 mr-1" /> ฝน
+              </button>
+              <button onClick={() => setActiveTab('dam')} className={`flex items-center px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'dam' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-indigo-600'}`}>
+                <Building2 className="w-4 h-4 mr-1" /> เขื่อน
               </button>
             </div>
 
@@ -143,25 +169,37 @@ const VerifyDataPage = ({ waterData = [], rainData = [], refreshData }) => {
           </div>
         </div>
         
-        <div className={`px-4 py-2 rounded-lg text-sm font-bold shadow-inner ${activeTab === 'water' ? 'bg-blue-50 text-blue-700' : 'bg-cyan-50 text-cyan-700'}`}>
+        <div className={`px-4 py-2 rounded-lg text-sm font-bold shadow-inner ${
+            activeTab === 'water' ? 'bg-blue-50 text-blue-700' : 
+            activeTab === 'rain' ? 'bg-cyan-50 text-cyan-700' : 'bg-indigo-50 text-indigo-700'
+        }`}>
           รายการวันนี้: {displayData.length} รายการ
         </div>
       </div>
 
       <div className="overflow-x-auto border rounded-xl shadow-sm">
         <table className="w-full border-collapse">
-          <thead className={activeTab === 'water' ? "bg-blue-50" : "bg-cyan-50"}>
+          <thead className={activeTab === 'water' ? "bg-blue-50" : activeTab === 'rain' ? "bg-cyan-50" : "bg-indigo-50"}>
             <tr className="text-gray-500 text-[11px] uppercase tracking-widest font-bold">
               <th className="p-4 text-center">วันที่</th>
               <th className="p-4 text-center">สถานี</th>
-              {activeTab === 'water' ? (
+              
+              {activeTab === 'water' && (
                 <>
                   <th className="p-4 text-center">Inflow</th>
                   <th className="p-4 text-center">Outflow</th>
                 </>
-              ) : (
+              )}
+              {activeTab === 'rain' && (
                 <th className="p-4 text-center">Rain (mm.)</th>
               )}
+              {activeTab === 'dam' && (
+                <>
+                  <th className="p-4 text-center">Current</th>
+                  <th className="p-4 text-center">Usable</th>
+                </>
+              )}
+
               <th className="p-4 text-center">สถานะ</th>
               <th className="p-4 text-center">จัดการ</th>
             </tr>
@@ -169,7 +207,12 @@ const VerifyDataPage = ({ waterData = [], rainData = [], refreshData }) => {
           <tbody className="divide-y divide-gray-100 text-sm">
             {displayData.map((item) => (
               <tr key={item.id} className="hover:bg-gray-50 transition">
-                <td className="p-4 text-center text-gray-400">{item.date}</td>
+                
+                {/* 🟢 แสดงวันที่แบบ YYYY-MM-DD โดยใช้ฟังก์ชันช่วยแสดงผล */}
+                <td className="p-4 text-center text-gray-400 font-mono">
+                    {formatDateDisplay(item.date)}
+                </td>
+
                 <td className="p-4 font-bold text-center text-blue-900">
                   {item.stationName}
                   <div className="text-[10px] font-normal text-gray-400 flex items-center justify-center mt-1">
@@ -177,13 +220,20 @@ const VerifyDataPage = ({ waterData = [], rainData = [], refreshData }) => {
                   </div>
                 </td>
                 
-                {activeTab === 'water' ? (
+                {activeTab === 'water' && (
                   <>
                     <td className="p-4 text-center font-mono text-green-600 font-bold">{item.inflow || '0'}</td>
                     <td className="p-4 text-center font-mono text-orange-600 font-bold">{item.outflow || '0'}</td>
                   </>
-                ) : (
+                )}
+                {activeTab === 'rain' && (
                   <td className="p-4 text-center font-mono text-cyan-600 font-bold">{item.rainAmount || '0.0'}</td>
+                )}
+                {activeTab === 'dam' && (
+                  <>
+                    <td className="p-4 text-center font-mono text-indigo-600 font-bold">{item.currentStorage || '-'}</td>
+                    <td className="p-4 text-center font-mono text-green-600 font-bold">{item.usableStorage || '-'}</td>
+                  </>
                 )}
 
                 <td className="p-4 text-center">
@@ -191,7 +241,7 @@ const VerifyDataPage = ({ waterData = [], rainData = [], refreshData }) => {
                     item.status === 'approved' ? 'bg-green-100 text-green-700 border border-green-200' : 
                     item.status === 'rejected' ? 'bg-red-100 text-red-700 border border-red-200' : 'bg-yellow-100 text-yellow-700 border border-yellow-200'
                   }`}>
-                    {item.status.toUpperCase()}
+                    {item.status ? item.status.toUpperCase() : 'PENDING'}
                   </span>
                 </td>
                 <td className="p-4 text-center">
@@ -205,7 +255,7 @@ const VerifyDataPage = ({ waterData = [], rainData = [], refreshData }) => {
               <tr>
                 <td colSpan={activeTab === 'water' ? 6 : 5} className="p-20 text-center text-gray-400">
                    <CloudRain className="w-12 h-12 mx-auto mb-3 opacity-20" />
-                   ไม่พบข้อมูล{activeTab === 'water' ? 'น้ำ' : 'ฝน'}ของวันที่เลือก
+                   ไม่พบข้อมูล{activeTab === 'water' ? 'น้ำ' : activeTab === 'rain' ? 'ฝน' : 'เขื่อน'}ของวันที่เลือก
                 </td>
               </tr>
             )}

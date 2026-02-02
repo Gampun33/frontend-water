@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { 
   LogOut, Database, CheckCircle, Users, 
   FileText, History, Home, Settings,
-  LayoutDashboard // 🟢 1. เพิ่มไอคอน Dashboard
+  LayoutDashboard // ไอคอน Dashboard
 } from 'lucide-react';
 
 // --- Import หน้าจอย่อยๆ ---
@@ -12,12 +12,12 @@ import VerifyDataPage from './VerifyDataPage';
 import UserManagementPage from './UserManagementPage';
 import DataReportPage from './DataReportPage';
 import ProfilePage from './ProfilePage';
-import DashboardChartPage from './DashboardChartPage'; // 🟢 2. Import หน้ากราฟที่เพิ่งสร้าง
+import DashboardChartPage from './DashboardChartPage';
 
-// 🟢 เพิ่ม rainData เข้ามาใน Props ของคอมโพเนนต์
-const DashboardLayout = ({ user, onLogout, onGoHome, waterData, rainData = [], refreshData, onUpdateUser }) => {
+// 🟢 1. รับ damData เพิ่มเข้ามาใน Props
+const DashboardLayout = ({ user, onLogout, onGoHome, waterData = [], rainData = [], damData = [], refreshData, onUpdateUser }) => {
   
-  // 🟢 3. ปรับให้เปิดมาเจอหน้า Dashboard เป็นหน้าแรก (หรือจะแก้กลับเป็น logic เดิมก็ได้จ้ะ)
+  // เปิดมาหน้า Dashboard ก่อน
   const [activeTab, setActiveTab] = useState('dashboard');
 
   const SidebarItem = ({ icon: Icon, label, active, onClick }) => (
@@ -65,7 +65,6 @@ const DashboardLayout = ({ user, onLogout, onGoHome, waterData, rainData = [], r
 
         <nav className="py-2 space-y-1 flex-1 overflow-y-auto">
           
-          {/* 🟢 4. เพิ่มเมนู Dashboard ไว้บนสุด */}
           <SidebarItem 
             icon={LayoutDashboard} 
             label="ภาพรวม (Dashboard)" 
@@ -135,43 +134,46 @@ const DashboardLayout = ({ user, onLogout, onGoHome, waterData, rainData = [], r
       <main className="flex-1 p-6 overflow-y-auto h-screen bg-slate-50 print:bg-white print:p-0 print:h-auto print:overflow-visible">
         <div className="max-w-[1600px] mx-auto w-full print:max-w-none">
             
-            {/* 🟢 5. เพิ่มส่วนแสดงผลกราฟ Dashboard */}
+            {/* 🟢 2. ส่ง damData ไปยังหน้าย่อยต่างๆ */}
+
             {activeTab === 'dashboard' && (
               <DashboardChartPage 
                 waterData={waterData} 
                 rainData={rainData} 
+                damData={damData} // 👈 ส่งไปกราฟ
               />
             )}
 
-            {/* 🟢 หน้าเพิ่มข้อมูล (รองรับทั้งน้ำและฝนในตัว) */}
-            {activeTab === 'add' && <AddDataPage user={user} refreshData={refreshData} />}
+            {activeTab === 'add' && (
+                <AddDataPage user={user} refreshData={refreshData} />
+            )}
             
-            {/* 🟢 หน้าติดตามสถานะ (ส่ง rainData ไปเพิ่ม) */}
             {activeTab === 'status' && (
               <OperatorStatusPage 
                 user={user} 
                 waterData={waterData} 
                 rainData={rainData} 
+                damData={damData} // 👈 ส่งไปหน้าสถานะ
                 refreshData={refreshData} 
               />
             )}
 
-            {/* 🟢 หน้าตรวจข้อมูล Admin (ส่ง rainData ไปเพิ่มเพื่อให้ Admin ตรวจฝนได้) */}
             {activeTab === 'verify' && (
               <VerifyDataPage 
                 waterData={waterData} 
                 rainData={rainData} 
+                damData={damData} // 👈 ส่งไปหน้าตรวจสอบ
                 refreshData={refreshData} 
               />
             )}
 
             {activeTab === 'users' && <UserManagementPage />}
             
-            {/* 🟢 หน้ารายงานผล (ส่ง rainData ไปเพิ่มเพื่อออกรายงานฝน) */}
             {activeTab === 'report' && (
               <DataReportPage 
                 waterData={waterData} 
                 rainData={rainData} 
+                damData={damData} // 👈 ส่งไปหน้ารายงาน
               />
             )}
 

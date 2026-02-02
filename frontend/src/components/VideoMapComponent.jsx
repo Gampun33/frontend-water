@@ -3,82 +3,25 @@ import {
   ChevronLeft,
   ChevronRight,
   Plus,
-  Minus,
-  Calendar
+  Minus
 } from "lucide-react";
-import waveVideo from "../assets/mapwater_3.mp4"; 
-import waveimage from "../assets/mapwater.png";
-import damimage from "../assets/dams.png";
 
 import InteractiveMapOverlay from "./InteractiveMapOverlay"; 
 
-// --- 🟢 1. รายชื่อ 13 อำเภอ ---
-const LAMPANG_DISTRICTS = [
-  "เมืองลำปาง", "แม่เมาะ", "เกาะคา", "เสริมงาม", "งาว", "แจ้ห่ม",
-  "วังเหนือ", "เถิน", "แม่พริก", "แม่ทะ", "สบปราบ", "ห้างฉัตร", "เมืองปาน",
-];
+// Import Config
+import { 
+  LAMPANG_DISTRICTS,
+  RAIN_TABLE_CONFIG,
+  MAP_OVERLAY_CONFIG,
+  DATE_TIME_CONFIG,
+  WATER_SUMMARY_CONFIG,
+  STATION_OVERLAYS,
+  STATION_LOCATIONS,
+  MAP_CAROUSEL_DATA,
+  damimage 
+} from "./mapConfig"; 
 
-// --- 🟢 2. CONFIGURATION (ตั้งค่าตำแหน่ง) ---
-
-const RAIN_TABLE_CONFIG = {
-  desktop: { top: "13.5%", left: "0.5%", width: "100px", scale: 1.6 },
-  report:  { top: "14.4%", left: "0.7%", width: "85px", scale: 1.4 }
-};
-
-const MAP_OVERLAY_CONFIG = {
-  desktop: { top: "13%", left: "1.3%", width: "30%", height: "33%" }, 
-  report:  { top: "17.5%", left: "2.6%", width: "28%", height: "28%" } 
-};
-
-// ✅ ตั้งค่า วันที่/เวลา (ตำแหน่งนี้อิงตามขนาดวิดีโอ)
-const DATE_TIME_CONFIG = {
-  desktop: { top: "1%", right: "33.5%", scale: 1.1 }, // ขยับให้ใหญ่หน่อยเพราะอยู่ใน map
-  report:  { top: "5%", right: "5%", scale: 1.0 }
-};
-
-const STATION_OVERLAYS = {
-  เขื่อนภูมิพล: {
-    desktop: { top: "21.1%", left: "35.2%", w: 100, h: 73 },
-    report:  { top: "28%",   left: "15%",   w: 60,  h: 45 },
-  },
-  เขื่อนกิ่วลม: {
-    desktop: { top: "25%", left: "79%", w: 77, h: 55 },
-    report:  { top: "28%", left: "79%", w: 45, h: 32 },
-  },
-  เขื่อนสิริกิติ์: {
-    desktop: { top: "29%", left: "72%", w: 55, h: 40 },
-    report:  { top: "32%", left: "52%", w: 35, h: 25 },
-  },
-};
-
-const STATION_LOCATIONS = {
-  เขื่อนภูมิพล: {
-    desktop: { 
-      set1: { top: "35%", left: "15%", fontSize: 24 }, 
-      set2: { top: "40%", left: "15%", fontSize: 16 }  
-    },
-    report: { 
-      set1: { top: "36%", left: "15%", fontSize: 12 }, 
-      set2: { top: "40%", left: "15%", fontSize: 8 }
-    },
-    color: "#fff700",
-  },
-  เขื่อนกิ่วลม: {
-    desktop: { 
-      set1: { top: "35%", left: "79%", fontSize: 18 }, 
-      set2: { top: "40%", left: "79%", fontSize: 14 }
-    },
-    report: { 
-      set1: { top: "36%", left: "79%", fontSize: 10 }, 
-      set2: { top: "40%", left: "79%", fontSize: 8 }
-    },
-    color: "#38bdf8",
-  },
-};
-
-const MAP_CAROUSEL_DATA = [{ id: 1, region: "ภาพรวมประเทศ", video: waveVideo, image: waveimage }];
-
-// --- 🟢 Helper: ฟังก์ชันแปลงวันที่เป็นไทย ---
+// ... (Helper: formatThaiDateTime คงเดิม) ...
 const formatThaiDateTime = (date) => {
   const months = [
     "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
@@ -93,7 +36,7 @@ const formatThaiDateTime = (date) => {
   return `วันที่ ${day} ${month} ${year} เวลา ${hours}.${minutes} น.`;
 };
 
-// --- 🟢 Component: วันที่เวลา Overlay ---
+// ... (Component: DateTimeOverlay คงเดิม) ...
 const DateTimeOverlay = ({ config }) => {
   const [currentTime, setCurrentTime] = useState(new Date());
 
@@ -119,7 +62,6 @@ const DateTimeOverlay = ({ config }) => {
         <div className="flex flex-col items-end print:items-end">
             <span 
                 className="text-blue font-[sans-serif] font-bold tracking-wide font-mono print:text-gray-800 print:font-bold whitespace-nowrap"
-                // 🟢 เพิ่มบรรทัดนี้: รับค่า px จาก config โดยตรง
                 style={{ fontSize: config.fontSize || "13px" }} 
             >
                {formatThaiDateTime(currentTime)}
@@ -130,8 +72,84 @@ const DateTimeOverlay = ({ config }) => {
   );
 };
 
-// --- 🟢 Component ตารางฝน ---
+// ... (Component: WaterSummaryOverlay คงเดิม) ...
+const WaterSummaryOverlay = ({ markers, config }) => {
+  const stats = markers.reduce((acc, item) => {
+    const capacity = parseFloat(item.capacity || 0);
+    const current = parseFloat(item.current || 0);
+    
+    if (capacity <= 0) return acc;
+
+    const percent = (current / capacity) * 100;
+
+    if (percent >= 80) acc.critical++;      
+    else if (percent >= 50) acc.normal++;   
+    else if (percent >= 30) acc.low++;      
+    else acc.veryLow++;                     
+
+    return acc;
+  }, { critical: 0, normal: 0, low: 0, veryLow: 0 });
+
+  return (
+    <div
+      className="absolute z-[50] bg-slate-900/90 backdrop-blur-md border border-white/20 rounded-xl shadow-2xl overflow-hidden flex flex-col pointer-events-auto"
+      style={{ 
+        top: config.top, 
+        left: config.left, 
+        width: config.width,
+        transform: `scale(${config.scale})`, 
+        transformOrigin: "top left",
+        WebkitPrintColorAdjust: "exact",
+        printColorAdjust: "exact"
+      }}
+    >
+      <div className="bg-slate-800 p-0.5 border-b border-white/10">
+        <h3 className="text-white text-[10px] font-bold text-center">สรุปปริมาณน้ำในอ่างฯ</h3>
+      </div>
+      <div className="p-1 space-y-1">
+        <div className="flex justify-between items-center text-[10px] text-white">
+          <div className="flex items-center">
+            <span className="w-2 h-2 rounded-full bg-red-500 mr-2 animate-pulse"></span>
+            <span>80-100%</span>
+          </div>
+          <span className="font-mono font-bold text-red-400">จำนวน {stats.critical} แห่ง</span>
+        </div>
+        <div className="flex justify-between items-center text-[10px] text-white">
+          <div className="flex items-center">
+            <span className="w-2 h-2 rounded-full bg-green-500 mr-2"></span>
+            <span>50-79%</span>
+          </div>
+          <span className="font-mono font-bold text-green-400">จำนวน {stats.normal} แห่ง</span>
+        </div>
+        <div className="flex justify-between items-center text-[10px] text-white">
+          <div className="flex items-center">
+            <span className="w-2 h-2 rounded-full bg-yellow-500 mr-2"></span>
+            <span>30-49%</span>
+          </div>
+          <span className="font-mono font-bold text-yellow-400">จำนวน {stats.low} แห่ง</span>
+        </div>
+        <div className="flex justify-between items-center text-[10px] text-white">
+          <div className="flex items-center">
+            <span className="w-2 h-2 rounded-full bg-orange-600 mr-2"></span>
+            <span>น้อยกว่า 30%</span>
+          </div>
+          <span className="font-mono font-bold text-orange-400">จำนวน {stats.veryLow} แห่ง</span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ... (Component: RainTableOverlay คงเดิม) ...
 const RainTableOverlay = ({ data, top, left, width, height = "auto", scale = 1 }) => {
+  const getRainColor = (amount) => {
+    if (amount <= 0) return "text-gray-500 opacity-40";
+    if (amount <= 10) return "text-cyan-300";
+    if (amount <= 35) return "text-green-400";
+    if (amount <= 90) return "text-orange-400 font-bold";
+    return "text-red-500 font-black animate-pulse";
+  };
+
   const fullDistrictData = LAMPANG_DISTRICTS.map((district) => {
     const foundData = (data || []).find((item) => {
       const name = (item.stationName || item.station_name || "").trim();
@@ -173,7 +191,7 @@ const RainTableOverlay = ({ data, top, left, width, height = "auto", scale = 1 }
                    {item.stationName}
                 </td>
                 <td className="py-[1px] pr-2 text-right font-mono font-bold tracking-tight">
-                  <span className={`${item.rainAmount > 50 ? "text-red-400" : item.rainAmount > 0 ? "text-cyan-300" : "text-gray-500 opacity-40"}`}>
+                  <span className={`${getRainColor(item.rainAmount)} drop-shadow-sm transition-colors duration-300`}>
                     {item.rainAmount.toFixed(1)}
                   </span>
                 </td>
@@ -186,19 +204,52 @@ const RainTableOverlay = ({ data, top, left, width, height = "auto", scale = 1 }
   );
 };
 
-// --- 🟢 Component กราฟิกน้ำ ---
-const WaterLevelOverlay = ({ percent, imageFrame, w = 77, h = 55 }) => {
-  const innerW = w * 0.83;
+// ... (Component: WaterLevelOverlay คงเดิม) ...
+const WaterLevelOverlay = ({ percent, imageFrame, w = 77, h = 55, overflowHeight = 40 }) => {
+  const innerW = w * 1;
   const innerH = h * 0.65;
   const bottomDist = h * 0.23;
+  const isOverflow = percent > 100;
+  const displayHeight = Math.min(percent, 100);
+  const damTopEdge = h - (bottomDist + innerH);
+
   return (
     <div className="relative pointer-events-auto group" style={{ width: `${w}px`, height: `${h}px` }}>
-      <div className="absolute overflow-hidden bg-gray-900/20 rounded-b-md" style={{ width: `${innerW}px`, height: `${innerH}px`, left: "50%", bottom: `${bottomDist}px`, transform: "translateX(-50%)", zIndex: 0 }}>
-        <div className="absolute bottom-0 w-full bg-blue-500/80 transition-all duration-1000" style={{ height: `${percent}%` }} />
+      {isOverflow && (
+        <>
+          <div 
+            className="absolute bg-gradient-to-b from-red-600/90 to-red-500/0 w-full animate-pulse"
+            style={{ 
+              width: `${innerW}px`, height: `${overflowHeight}px`, top: `${damTopEdge - 2}px`, 
+              left: "50%", transform: "translateX(-50%)", zIndex: 20, borderRadius: "4px 4px 8px 8px"
+            }}
+          />
+        </>
+      )}
+      <div 
+        className="absolute overflow-hidden bg-gray-900/20 rounded-b-md" 
+        style={{ 
+          width: `${innerW}px`, height: `${innerH}px`, left: "50%", bottom: `${bottomDist}px`, 
+          transform: "translateX(-50%)", zIndex: 5 
+        }}
+      >
+        <div 
+          className={`absolute bottom-0 w-full transition-all duration-1000 ${
+            isOverflow ? "bg-red-600 shadow-[0_0_15px_rgba(220,38,38,0.8)]" : "bg-blue-500/80"
+          }`} 
+          style={{ height: `${displayHeight}%` }} 
+        />
       </div>
       <img src={imageFrame} className="absolute inset-0 w-full h-full object-contain z-10 pointer-events-none" alt="Dam Frame" />
-      <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none">
-        <span className="font-black text-white drop-shadow-md" style={{ fontSize: `${w * 0.13}px` }}>{Math.round(percent)}%</span>
+      <div className="absolute inset-0 z-30 flex items-center justify-center pointer-events-none">
+        <span 
+          className={`font-black drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] ${
+            isOverflow ? "text-red-100 animate-bounce scale-110" : "text-white"
+          }`} 
+          style={{ fontSize: `${w * 0.13}px` }}
+        >
+          {Math.round(percent)}%
+        </span>
       </div>
     </div>
   );
@@ -214,10 +265,18 @@ const VideoMapComponent = ({
   const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 });
   const [isDragging, setIsDragging] = useState(false);
   const [startPan, setStartPan] = useState({ x: 0, y: 0 });
-  
   const [initialDistance, setInitialDistance] = useState(null);
   const containerRef = useRef(null);
   const activeSlideData = MAP_CAROUSEL_DATA[currentSlide];
+
+  // Helper Function: เลือกสีตาม % น้ำ
+  const getStationColor = (percent) => {
+    const val = parseFloat(percent);
+    if (val >= 80) return "#ef4444"; // แดง (น้ำมาก/วิกฤต)
+    if (val >= 50) return "#3b82f6"; // ฟ้า (น้ำดี/ปกติ)
+    if (val >= 30) return "#22c55e"; // เขียว (น้ำพอใช้)
+    return "#f59e0b";                // ส้ม (น้ำน้อย)
+  };
 
   const getConfig = (configObj) => {
     if (mode === "report") return configObj.report || configObj.desktop;
@@ -226,7 +285,8 @@ const VideoMapComponent = ({
 
   const rainConfig = getConfig(RAIN_TABLE_CONFIG);
   const mapOverlayConfig = getConfig(MAP_OVERLAY_CONFIG);
-  const dateTimeConfig = getConfig(DATE_TIME_CONFIG); // 👈 ดึง Config
+  const dateTimeConfig = getConfig(DATE_TIME_CONFIG);
+  const summaryConfig = getConfig(WATER_SUMMARY_CONFIG);
 
   const handleStart = (clientX, clientY) => { setIsDragging(true); setStartPan({ x: clientX - transform.x, y: clientY - transform.y }); };
   const handleMouseDown = (e) => handleStart(e.clientX, e.clientY);
@@ -263,15 +323,18 @@ const VideoMapComponent = ({
       <style>{`
         @media print {
           @page { size: A4 landscape; margin: 0; }
-          body { margin: 0; padding: 0; }
-          .print-full-page { transform: none !important; width: 100vw !important; height: 100vh !important; position: fixed !important; top: 0 !important; left: 0 !important; display: block !important; }
-          video, img { width: 100% !important; height: 100% !important; object-fit: fill !important; }
-          * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+          body { margin: 0; padding: 0; -webkit-print-color-adjust: exact; }
+          .print-full-page { 
+             width: 100vw !important; height: 100vh !important; position: fixed !important; 
+             top: 0 !important; left: 0 !important; display: flex !important;
+             align-items: center; justify-content: center; background: white !important;
+          }
+          video, img.object-cover { width: 100% !important; height: 100% !important; object-fit: contain !important; }
           .print\\:hidden { display: none !important; }
         }
       `}</style>
 
-      {/* 🔴 MOVABLE CONTAINER: ทุกอย่างในนี้จะขยับตามการลาก/ซูม */}
+      {/* 🔴 MOVABLE CONTAINER */}
       <div className="w-full h-full relative origin-center transition-transform duration-75 ease-out will-change-transform print-full-page" style={{ transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})` }}>
         {mode === "report" ? (
           <img src={activeSlideData.image} alt={activeSlideData.region} className="absolute inset-0 w-full h-full object-cover object-center print:object-fill" />
@@ -281,38 +344,14 @@ const VideoMapComponent = ({
           </video>
         )}
 
-        {/* แผนที่อำเภอ */}
-        <div 
-          className="absolute z-10 pointer-events-none"
-          style={{
-            top: mapOverlayConfig.top,
-            left: mapOverlayConfig.left,
-            width: mapOverlayConfig.width,
-            height: mapOverlayConfig.height,
-            transition: 'all 0.3s ease'
-          }}
-        >
-           <InteractiveMapOverlay 
-              rainData={rainMarkers} 
-              width="100%" 
-              height="100%" 
-           />
+        <div className="absolute z-10 pointer-events-none" style={{ top: mapOverlayConfig.top, left: mapOverlayConfig.left, width: mapOverlayConfig.width, height: mapOverlayConfig.height, transition: 'all 0.3s ease' }}>
+           <InteractiveMapOverlay rainData={rainMarkers} width="100%" height="100%" />
         </div>
 
-        {/* ตารางฝน */}
-        <RainTableOverlay
-          data={rainMarkers}
-          top={rainConfig.top}
-          left={rainConfig.left}
-          width={rainConfig.width}
-          scale={rainConfig.scale} 
-          height="auto" 
-        />
-
-        {/* ✅ 🟢 DateTime Overlay: อยู่ใน Container ที่ขยับได้แล้ว (Gecko Mode) */}
+        <WaterSummaryOverlay markers={markers} config={summaryConfig} />
+        <RainTableOverlay data={rainMarkers} top={rainConfig.top} left={rainConfig.left} width={rainConfig.width} scale={rainConfig.scale} height="auto" />
         <DateTimeOverlay config={dateTimeConfig} />
 
-        {/* Markers จุดตรวจวัดน้ำ */}
         <div className="absolute inset-0 pointer-events-none z-20">
           {markers.map((item) => {
             const fullLocConfig = STATION_LOCATIONS[item.stationName];
@@ -322,29 +361,50 @@ const VideoMapComponent = ({
             const pos = getConfig(fullLocConfig);
             const over = fullOverConfig ? getConfig(fullOverConfig) : null;
             
-            const customColor = fullLocConfig.color || "white";
+            // 2. คำนวณเปอร์เซ็นต์
             const calcPercent = item.current && item.capacity ? ((item.current / item.capacity) * 100).toFixed(2) : (item.percent || 0).toFixed(2);
             
+            // 3. เลือกสีตามเกณฑ์
+            const customColor = getStationColor(calcPercent);
+
             const defaultFontSize = mode === "report" ? 10 : 18;
             const fontSize1 = pos.set1?.fontSize || defaultFontSize; 
             const fontSize2 = pos.set2?.fontSize || defaultFontSize;
 
+            // 🟢 4. กำหนดขนาด Dot (อ่านจาก Config ได้ หรือใช้ Default)
+            const dotSize = pos.dot?.size || (mode === "report" ? "8px" : "14px");
+
             return (
               <React.Fragment key={`dyn-${item.id}`}>
+                
+                {/* 🟢 NEW: แสดงจุด (Dot) ถ้ามี Config 'dot' หรืออยากให้แสดงเสมอ */}
+                {pos.dot && (
+                    <div 
+                        className={`absolute rounded-full pointer-events-auto border-2 border-white/80 shadow-[0_0_8px_rgba(0,0,0,0.5)] ${parseFloat(calcPercent) >= 80 ? 'animate-pulse' : ''}`}
+                        style={{ 
+                            top: pos.dot.top, 
+                            left: pos.dot.left, 
+                            width: dotSize, 
+                            height: dotSize,
+                            backgroundColor: customColor, // สีเปลี่ยนตาม %
+                            transform: "translate(-50%, -50%)",
+                            boxShadow: `0 0 12px ${customColor}` // เรืองแสงตามสี
+                        }}
+                    />
+                )}
+
                 {over && (
                   <div className="absolute pointer-events-auto" style={{ top: over.top, left: over.left, transform: "translate(-50%, -50%)" }}>
                     <WaterLevelOverlay percent={calcPercent} imageFrame={damimage} w={over.w} h={over.h} />
                   </div>
                 )}
-                
-                {/* Set 1: ความจุ */}
+                {/* SET 1: ปริมาณน้ำ / ความจุ (%) */}
                 <div className="absolute whitespace-nowrap text-center pointer-events-auto" style={{ top: pos.set1.top, left: pos.set1.left, transform: "translate(-50%, -50%)" }}>
                   <span className="font-bold drop-shadow-[0_2px_2px_rgba(0,0,0,0.9)]" style={{ fontSize: `${fontSize1}px`, color: customColor }}>
                     {item.capacity ? parseFloat(item.capacity).toLocaleString() : "-"} <span className="ml-1 opacity-80" style={{ fontSize: `${fontSize1 * 0.8}px` }}>({calcPercent}%)</span>
                   </span>
                 </div>
-
-                {/* Set 2: Inflow/Outflow */}
+                {/* SET 2: Inflow / Outflow */}
                 <div className="absolute whitespace-nowrap text-center pointer-events-auto" style={{ top: pos.set2.top, left: pos.set2.left, transform: "translate(-50%, -50%)" }}>
                   <div className="font-bold drop-shadow-[0_2px_2px_rgba(0,0,0,0.9)]" style={{ fontSize: `${fontSize2}px`, color: customColor }}>
                     <span style={{ filter: "brightness(1.5)" }}>{item.inflow || "-"}</span> / <span style={{ filter: "brightness(0.8)" }}>{item.outflow || "-"}</span>
@@ -357,7 +417,7 @@ const VideoMapComponent = ({
       </div>
       {/* 🔴 END MOVABLE CONTAINER */}
 
-      {/* Control UI (Fixed position, does not move with map) */}
+      {/* Control UI */}
       <div className="absolute inset-0 pointer-events-none z-10 print:hidden">
         <button onClick={(e) => { e.stopPropagation(); handlePrev(); }} className="absolute left-4 top-1/2 transform -translate-y-1/2 bg-black/30 hover:bg-black/60 text-white p-2 rounded-full pointer-events-auto shadow-lg"><ChevronLeft className="w-8 h-8" /></button>
         <button onClick={(e) => { e.stopPropagation(); handleNext(); }} className="absolute right-4 top-1/2 transform -translate-y-1/2 bg-black/30 hover:bg-black/60 text-white p-2 rounded-full pointer-events-auto shadow-lg"><ChevronRight className="w-8 h-8" /></button>
@@ -374,7 +434,6 @@ const VideoMapComponent = ({
             </div>
         </div>
       </div>
-
     </div>
   );
 };

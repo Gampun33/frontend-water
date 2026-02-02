@@ -232,5 +232,99 @@ export const MysqlService = {
       }, 500);
     });
   }
+,
+  // --- 🏭 ระบบข้อมูลเขื่อน (Dam Reports) เพิ่มใหม่ตรงนี้จ้ะ ---
+
+  // 1. ดึงข้อมูลเขื่อนทั้งหมด
+  getDamReports: async () => {
+    console.log("กำลังดึงข้อมูลเขื่อนจาก API..."); // 🟢 1. เช็คว่าเรียกฟังก์ชันไหม
+    const realData = await MysqlService.request('/dam-reports');
+    
+    if (realData) {
+        console.log("✅ ได้ข้อมูลจริงจาก Server:", realData); // 🟢 2. ถ้าสำเร็จจะขึ้นตรงนี้
+        return realData;
+    } else {
+        console.error("❌ ติดต่อ Server ไม่ได้! กำลังใช้ Mock Data"); // 🔴 3. ถ้าล่มจะขึ้นตรงนี้
+    }
+
+    // Mock Mode
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        const data = MysqlService._get('mysql_dam_reports') || [];
+        resolve(data.sort((a, b) => b.id - a.id));
+      }, 500);
+    });
+  },
+
+  // 2. บันทึกข้อมูลเขื่อนใหม่ (สำคัญ! ปุ่มที่ 3 ใช้ตัวนี้)
+  createDamReport: async (payload) => {
+    const result = await MysqlService.request('/dam-reports', { 
+      method: 'POST', 
+      body: JSON.stringify(payload) 
+    });
+
+    if (result) {
+      console.log("✅ บันทึกข้อมูลเขื่อนลง MySQL สำเร็จ!");
+      return result;
+    }
+
+    // Mock Mode
+    console.warn("⚠️ บันทึกเขื่อนลง MySQL ไม่ได้ ใช้ Mock Mode แทน...");
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        const currentData = MysqlService._get('mysql_dam_reports') || [];
+        const now = new Date();
+        const localTimestamp = now.toLocaleString('sv-SE', { timeZone: 'Asia/Bangkok' }).replace('T', ' ');
+        
+        const newReport = {
+          id: Date.now(),
+          ...payload,
+          updated_at: localTimestamp, 
+          status: 'pending', 
+          created_at: localTimestamp
+        };
+        
+        MysqlService._set('mysql_dam_reports', [...currentData, newReport]);
+        resolve(newReport);
+      }, 600);
+    });
+  },
+
+  // 3. อัปเดตข้อมูลเขื่อน
+  updateDamReport: async (id, payload) => {
+    const result = await MysqlService.request(`/dam-reports/${id}`, { 
+      method: 'PUT', 
+      body: JSON.stringify(payload) 
+    });
+
+    if (result) return result;
+
+    // Mock Mode
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        const currentData = MysqlService._get('mysql_dam_reports') || [];
+        const updatedData = currentData.map(item => item.id === id ? { ...item, ...payload } : item);
+        MysqlService._set('mysql_dam_reports', updatedData);
+        resolve({ success: true });
+      }, 500);
+    });
+  },
+
+  // 4. ลบข้อมูลเขื่อน
+  deleteDamReport: async (id) => {
+    const result = await MysqlService.request(`/dam-reports/${id}`, { method: 'DELETE' });
+    if (result) return result;
+
+    // Mock Mode
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        const currentData = MysqlService._get('mysql_dam_reports') || [];
+        const filteredData = currentData.filter(item => item.id !== id);
+        MysqlService._set('mysql_dam_reports', filteredData);
+        resolve({ success: true });
+      }, 500);
+    });
+  }
 
 };
+
