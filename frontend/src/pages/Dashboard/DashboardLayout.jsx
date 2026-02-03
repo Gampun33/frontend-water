@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { 
   LogOut, Database, CheckCircle, Users, 
   FileText, History, Home, Settings,
-  LayoutDashboard // ไอคอน Dashboard
+  LayoutDashboard 
 } from 'lucide-react';
 
 // --- Import หน้าจอย่อยๆ ---
@@ -14,11 +14,23 @@ import DataReportPage from './DataReportPage';
 import ProfilePage from './ProfilePage';
 import DashboardChartPage from './DashboardChartPage';
 
-// 🟢 1. รับ damData เพิ่มเข้ามาใน Props
-const DashboardLayout = ({ user, onLogout, onGoHome, waterData = [], rainData = [], damData = [], refreshData, onUpdateUser }) => {
+// 🟢 1. รับ editingData และ setEditingData เข้ามาเพิ่ม
+const DashboardLayout = ({ 
+  user, onLogout, onGoHome, 
+  waterData = [], rainData = [], damData = [], 
+  refreshData, onUpdateUser,
+  editingData, setEditingData // 👈 รับมาตรงนี้
+}) => {
   
-  // เปิดมาหน้า Dashboard ก่อน
   const [activeTab, setActiveTab] = useState('dashboard');
+
+  // 🟢 2. สร้างฟังก์ชันรับงานแก้ไข (Bridge Function)
+  const handleEditRequest = (item, type) => {
+      // 1. เก็บข้อมูลที่จะแก้ลง State
+      setEditingData({ ...item, reportType: type }); 
+      // 2. สั่งเปลี่ยนหน้าไปที่ "เพิ่มข้อมูล" ทันที
+      setActiveTab('add'); 
+  };
 
   const SidebarItem = ({ icon: Icon, label, active, onClick }) => (
     <button 
@@ -44,7 +56,7 @@ const DashboardLayout = ({ user, onLogout, onGoHome, waterData = [], rainData = 
         }
       `}</style>
 
-      {/* --- Sidebar --- */}
+      {/* --- Sidebar (เหมือนเดิม) --- */}
       <aside className="w-full md:w-64 bg-white shadow-lg z-10 flex-shrink-0 flex flex-col h-screen sticky top-0 print:hidden">
         <div className="p-6 border-b bg-blue-50/50">
           <h2 className="font-bold text-gray-800 uppercase">
@@ -76,7 +88,10 @@ const DashboardLayout = ({ user, onLogout, onGoHome, waterData = [], rainData = 
             icon={Database} 
             label="เพิ่มข้อมูล" 
             active={activeTab === 'add'} 
-            onClick={() => setActiveTab('add')} 
+            onClick={() => {
+                setEditingData(null); // 🟢 ถ้ากดเมนูเอง ให้ล้างค่าการแก้ไขทิ้ง (ถือว่าเพิ่มใหม่)
+                setActiveTab('add');
+            }} 
           />
           <SidebarItem 
             icon={History} 
@@ -134,18 +149,22 @@ const DashboardLayout = ({ user, onLogout, onGoHome, waterData = [], rainData = 
       <main className="flex-1 p-6 overflow-y-auto h-screen bg-slate-50 print:bg-white print:p-0 print:h-auto print:overflow-visible">
         <div className="max-w-[1600px] mx-auto w-full print:max-w-none">
             
-            {/* 🟢 2. ส่ง damData ไปยังหน้าย่อยต่างๆ */}
-
             {activeTab === 'dashboard' && (
               <DashboardChartPage 
                 waterData={waterData} 
                 rainData={rainData} 
-                damData={damData} // 👈 ส่งไปกราฟ
+                damData={damData} 
               />
             )}
 
             {activeTab === 'add' && (
-                <AddDataPage user={user} refreshData={refreshData} />
+                <AddDataPage 
+                    user={user} 
+                    refreshData={refreshData}
+                    // 🟢 3. ส่งข้อมูลที่จะแก้ไขไปให้หน้า AddData
+                    initialData={editingData} 
+                    onClearEditing={() => setEditingData(null)} // ส่งฟังก์ชันเคลียร์ค่ากลับไปด้วย
+                />
             )}
             
             {activeTab === 'status' && (
@@ -153,8 +172,10 @@ const DashboardLayout = ({ user, onLogout, onGoHome, waterData = [], rainData = 
                 user={user} 
                 waterData={waterData} 
                 rainData={rainData} 
-                damData={damData} // 👈 ส่งไปหน้าสถานะ
-                refreshData={refreshData} 
+                damData={damData} 
+                refreshData={refreshData}
+                // 🟢 4. ส่งฟังก์ชันรับงานแก้ไขไปให้หน้า Status
+                onEdit={handleEditRequest} 
               />
             )}
 
@@ -162,7 +183,7 @@ const DashboardLayout = ({ user, onLogout, onGoHome, waterData = [], rainData = 
               <VerifyDataPage 
                 waterData={waterData} 
                 rainData={rainData} 
-                damData={damData} // 👈 ส่งไปหน้าตรวจสอบ
+                damData={damData} 
                 refreshData={refreshData} 
               />
             )}
@@ -173,7 +194,7 @@ const DashboardLayout = ({ user, onLogout, onGoHome, waterData = [], rainData = 
               <DataReportPage 
                 waterData={waterData} 
                 rainData={rainData} 
-                damData={damData} // 👈 ส่งไปหน้ารายงาน
+                damData={damData} 
               />
             )}
 
