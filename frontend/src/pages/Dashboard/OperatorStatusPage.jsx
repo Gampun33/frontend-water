@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { History, Calendar, Clock, Check, X, FileText, Droplets, CloudRain, Building2 } from 'lucide-react'; // 🟢 เพิ่ม Building2
+import { History, Calendar, Clock, Check, X, FileText, Droplets, CloudRain, Building2, Edit } from 'lucide-react'; // 🟢 เพิ่ม Edit Icon
 import { getBangkokDate } from '../../utils/helpers';
 
-// 🟢 1. รับ damData เพิ่มเข้ามา
-const OperatorStatusPage = ({ user, waterData = [], rainData = [], damData = [] }) => { 
+// 🟢 1. รับ onEdit เพิ่มเข้ามาใน Props
+const OperatorStatusPage = ({ user, waterData = [], rainData = [], damData = [], onEdit }) => { 
   const [selectedDate, setSelectedDate] = useState(getBangkokDate());
-  const [activeTab, setActiveTab] = useState('water'); // 'water', 'rain', 'dam'
+  const [activeTab, setActiveTab] = useState('water'); 
 
   // Helper: ฟังก์ชันเช็คความเป็นเจ้าของและวันที่
   const filterMyReports = (data) => {
@@ -15,15 +15,21 @@ const OperatorStatusPage = ({ user, waterData = [], rainData = [], damData = [] 
     ).sort((a, b) => new Date(b.updated_at || b.date) - new Date(a.updated_at || a.date));
   };
 
-  // 🟢 2. กรองข้อมูลแต่ละประเภท
   const myWaterReports = filterMyReports(waterData);
   const myRainReports = filterMyReports(rainData);
   const myDamReports = filterMyReports(damData);
 
-  // เลือกข้อมูลที่จะแสดงตาม Tab
   const currentList = activeTab === 'water' ? myWaterReports 
                     : activeTab === 'rain' ? myRainReports 
                     : myDamReports;
+
+  // 🟢 2. ฟังก์ชันจัดการเมื่อกดปุ่มแก้ไข
+  const handleEditClick = (item) => {
+      // ส่งข้อมูลกลับไปที่ App.js เพื่อให้มันเปิดหน้า AddData และกรอกข้อมูลรอ
+      if (onEdit) {
+          onEdit(item, activeTab); // ส่ง item และประเภท (water/rain/dam) ไปด้วย
+      }
+  };
 
   const StatusBadge = ({ status }) => {
     switch(status) {
@@ -35,7 +41,7 @@ const OperatorStatusPage = ({ user, waterData = [], rainData = [], damData = [] 
 
   return (
     <div className="bg-white rounded-xl shadow-sm p-6 animate-fade-in border border-gray-100">
-        {/* Header ส่วนบน */}
+        {/* ... (Header ส่วนบน เหมือนเดิม) ... */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
           <div>
             <h2 className="text-2xl font-bold text-gray-800 flex items-center">
@@ -45,24 +51,14 @@ const OperatorStatusPage = ({ user, waterData = [], rainData = [], damData = [] 
           </div>
 
           <div className="flex items-center gap-3">
-            {/* 🟢 3. ปุ่มสลับ Tab (เพิ่มเขื่อน) */}
             <div className="flex bg-gray-100 p-1 rounded-lg border border-gray-200">
-              <button 
-                onClick={() => setActiveTab('water')}
-                className={`flex items-center px-3 py-1.5 rounded-md text-xs font-bold transition-all ${activeTab === 'water' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-blue-500'}`}
-              >
+              <button onClick={() => setActiveTab('water')} className={`flex items-center px-3 py-1.5 rounded-md text-xs font-bold transition-all ${activeTab === 'water' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-blue-500'}`}>
                 <Droplets className="w-3 h-3 mr-1" /> น้ำทั่วไป
               </button>
-              <button 
-                onClick={() => setActiveTab('rain')}
-                className={`flex items-center px-3 py-1.5 rounded-md text-xs font-bold transition-all ${activeTab === 'rain' ? 'bg-white text-cyan-600 shadow-sm' : 'text-gray-500 hover:text-cyan-500'}`}
-              >
+              <button onClick={() => setActiveTab('rain')} className={`flex items-center px-3 py-1.5 rounded-md text-xs font-bold transition-all ${activeTab === 'rain' ? 'bg-white text-cyan-600 shadow-sm' : 'text-gray-500 hover:text-cyan-500'}`}>
                 <CloudRain className="w-3 h-3 mr-1" /> ฝน
               </button>
-              <button 
-                onClick={() => setActiveTab('dam')}
-                className={`flex items-center px-3 py-1.5 rounded-md text-xs font-bold transition-all ${activeTab === 'dam' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-indigo-500'}`}
-              >
+              <button onClick={() => setActiveTab('dam')} className={`flex items-center px-3 py-1.5 rounded-md text-xs font-bold transition-all ${activeTab === 'dam' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-indigo-500'}`}>
                 <Building2 className="w-3 h-3 mr-1" /> เขื่อน
               </button>
             </div>
@@ -82,7 +78,6 @@ const OperatorStatusPage = ({ user, waterData = [], rainData = [], damData = [] 
                 <th className="px-6 py-3 text-center text-[10px] font-bold text-gray-500 uppercase tracking-wider">วัน-เวลา</th>
                 <th className="px-6 py-3 text-center text-[10px] font-bold text-gray-500 uppercase tracking-wider">สถานี / พื้นที่</th>
                 
-                {/* 🟢 4. Header เปลี่ยนตาม Tab */}
                 {activeTab === 'water' && (
                   <>
                     <th className="px-6 py-3 text-center text-[10px] font-bold text-gray-500 uppercase tracking-wider">ระดับน้ำ (ม.)</th>
@@ -101,6 +96,8 @@ const OperatorStatusPage = ({ user, waterData = [], rainData = [], damData = [] 
                 )}
 
                 <th className="px-6 py-3 text-center text-[10px] font-bold text-gray-500 uppercase tracking-wider">สถานะ</th>
+                {/* 🟢 3. เพิ่มคอลัมน์ Actions */}
+                <th className="px-6 py-3 text-center text-[10px] font-bold text-gray-500 uppercase tracking-wider">จัดการ</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-100">
@@ -110,7 +107,6 @@ const OperatorStatusPage = ({ user, waterData = [], rainData = [], damData = [] 
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-500">{new Date(item.updated_at || item.created_at || item.date).toLocaleTimeString('th-TH')}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-center font-bold text-gray-900">{item.stationName || item.station_name}</td>
                   
-                  {/* 🟢 5. Body เปลี่ยนตาม Tab */}
                   {activeTab === 'water' && (
                     <>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-center font-mono text-blue-600 font-bold">{item.waterLevel}</td>
@@ -129,11 +125,24 @@ const OperatorStatusPage = ({ user, waterData = [], rainData = [], damData = [] 
                   )}
 
                   <td className="px-6 py-4 whitespace-nowrap text-center"><StatusBadge status={item.status || 'pending'} /></td>
+                  
+                  {/* 🟢 4. แสดงปุ่มแก้ไขเฉพาะรายการที่ Rejected */}
+                  <td className="px-6 py-4 whitespace-nowrap text-center">
+                    {item.status === 'rejected' && (
+                        <button 
+                            onClick={() => handleEditClick(item)}
+                            className="text-indigo-600 hover:text-indigo-900 hover:bg-indigo-50 p-2 rounded-full transition-colors flex items-center justify-center mx-auto"
+                            title="แก้ไขและส่งใหม่"
+                        >
+                            <Edit className="w-4 h-4" />
+                        </button>
+                    )}
+                  </td>
                 </tr>
               ))
               ) : (
                 <tr>
-                  <td colSpan={activeTab === 'water' ? 6 : 4} className="px-6 py-16 text-center text-gray-400">
+                  <td colSpan={activeTab === 'water' ? 7 : 5} className="px-6 py-16 text-center text-gray-400">
                     <div className="bg-gray-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
                       <FileText className="w-8 h-8 text-gray-300" />
                     </div>
