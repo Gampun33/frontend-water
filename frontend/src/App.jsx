@@ -16,6 +16,7 @@ export default function App() {
   const [waterData, setWaterData] = useState([]);
   const [rainData, setRainData] = useState([]);
   const [damData, setDamData] = useState([]);
+  const [editingData, setEditingData] = useState(null);
 
   const fetchData = async () => {
     try {
@@ -65,6 +66,8 @@ export default function App() {
         damData={damData}
         refreshData={fetchData}
         onUpdateUser={handleUpdateUser}
+        editingData={editingData}       
+        setEditingData={setEditingData} 
       />
     );
   }
