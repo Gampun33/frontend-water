@@ -1,12 +1,15 @@
 import React, { useState, useMemo } from "react";
-import { Database, Map, Printer, Droplets, Building2, CloudRain, ArrowUp, ArrowDown, Minus, Info } from "lucide-react"; // 🟢 เพิ่ม Info icon
+import { Database, Map, Printer, Droplets, Building2, CloudRain, ArrowUp, ArrowDown, Minus, Info, Calendar } from "lucide-react"; // 🟢 เพิ่ม Calendar
 import VideoMapComponent from "../../components/VideoMapComponent";
 
 const DataReportPage = ({ waterData = [], rainData = [], damData = [] }) => {
   const [reportMode, setReportMode] = useState("table");
   const [fitToPage, setFitToPage] = useState(false);
+  
+  // 🟢 1. State สำหรับเลือกวันที่ (Default คือวันนี้)
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
 
-  // 1. ฟังก์ชันเลือกสีตามช่วงเปอร์เซ็นต์
+  // ฟังก์ชันเลือกสีตามช่วงเปอร์เซ็นต์
   const getPercentColor = (percent) => {
     const val = parseFloat(percent || 0);
     if (val > 100) return "bg-red-600 text-white shadow-md ";
@@ -16,7 +19,7 @@ const DataReportPage = ({ waterData = [], rainData = [], damData = [] }) => {
     return "bg-red-100 text-red-700";
   };
 
-  // 2. Component แสดงไอคอน Trend
+  // Component แสดงไอคอน Trend
   const TrendIcon = ({ diff }) => {
     const val = parseFloat(diff);
     if (isNaN(val) || val === 0) return <Minus className="w-3 h-3 text-gray-300 inline ml-1" />;
@@ -34,31 +37,15 @@ const DataReportPage = ({ waterData = [], rainData = [], damData = [] }) => {
     );
   };
 
-  // 🟢 3. Component คำอธิบายสี (Legend) - เพิ่มส่วนนี้จ้ะ
+  // Component คำอธิบายสี (Legend)
   const LegendBar = () => (
     <div className="flex flex-wrap gap-2 items-center justify-end mb-4 text-xs text-gray-600 print:mb-2 print:text-[10px]">
       <span className="font-bold mr-2 flex items-center"><Info className="w-3 h-3 mr-1" /> เกณฑ์ปริมาณน้ำ:</span>
-      
-      <div className="flex items-center space-x-1">
-        <span className="w-3 h-3 rounded-full bg-red-600 "></span>
-        <span>&gt;100% (ล้น)</span>
-      </div>
-      <div className="flex items-center space-x-1">
-        <span className="w-3 h-3 rounded-full bg-blue-600"></span>
-        <span>80-100% (มาก)</span>
-      </div>
-      <div className="flex items-center space-x-1">
-        <span className="w-3 h-3 rounded-full bg-green-500"></span>
-        <span>50-79% (ปกติ)</span>
-      </div>
-      <div className="flex items-center space-x-1">
-        <span className="w-3 h-3 rounded-full bg-yellow-400"></span>
-        <span>30-49% (น้อย)</span>
-      </div>
-      <div className="flex items-center space-x-1">
-        <span className="w-3 h-3 rounded-full bg-red-400"></span>
-        <span>&lt;30% (วิกฤต)</span>
-      </div>
+      <div className="flex items-center space-x-1"><span className="w-3 h-3 rounded-full bg-red-600 "></span><span>&gt;100% (ล้น)</span></div>
+      <div className="flex items-center space-x-1"><span className="w-3 h-3 rounded-full bg-blue-600"></span><span>80-100% (มาก)</span></div>
+      <div className="flex items-center space-x-1"><span className="w-3 h-3 rounded-full bg-green-500"></span><span>50-79% (ปกติ)</span></div>
+      <div className="flex items-center space-x-1"><span className="w-3 h-3 rounded-full bg-yellow-400"></span><span>30-49% (น้อย)</span></div>
+      <div className="flex items-center space-x-1"><span className="w-3 h-3 rounded-full bg-red-400"></span><span>&lt;30% (วิกฤต)</span></div>
     </div>
   );
 
@@ -68,6 +55,7 @@ const DataReportPage = ({ waterData = [], rainData = [], damData = [] }) => {
     const processDataGroup = (data, title, headerBgColor, type = 'general') => {
       const approved = data.filter((d) => d.status === "approved");
 
+      // Group by station name
       const stationGroups = {};
       approved.forEach(item => {
         const name = item.stationName || item.station_name;
@@ -75,10 +63,27 @@ const DataReportPage = ({ waterData = [], rainData = [], damData = [] }) => {
         stationGroups[name].push(item);
       });
 
+      // 🟢 Logic ใหม่: หาข้อมูลตามวันที่เลือก (selectedDate)
       const list = Object.values(stationGroups).map(group => {
-        group.sort((a, b) => new Date(b.updated_at || b.date) - new Date(a.updated_at || a.date));
-        return { latest: group[0], previous: group[1] };
-      });
+        // เรียงวันที่ล่าสุดมาก่อน
+        group.sort((a, b) => new Date(b.date || b.updated_at) - new Date(a.date || a.updated_at));
+        
+        // หา Index ของข้อมูลที่ตรงกับวันที่เลือก
+        const targetIndex = group.findIndex(item => {
+            // ตัดเวลาออกเทียบเฉพาะ YYYY-MM-DD
+            const itemDate = (item.date || item.updated_at || "").split('T')[0];
+            return itemDate === selectedDate;
+        });
+
+        // ถ้าไม่เจอข้อมูลของวันนั้น ให้ข้าม (return null)
+        if (targetIndex === -1) return null;
+
+        const latest = group[targetIndex];
+        // ข้อมูลก่อนหน้า คือตัวถัดไปใน Array (index + 1)
+        const previous = group[targetIndex + 1] || null; 
+
+        return { latest, previous };
+      }).filter(item => item !== null); // กรองเอาเฉพาะที่มีข้อมูล
 
       const items = list.map(({ latest, previous }) => {
         const item = latest;
@@ -128,10 +133,11 @@ const DataReportPage = ({ waterData = [], rainData = [], damData = [] }) => {
         };
       });
 
+      // Calculate Totals (เฉพาะรายการที่แสดงผล)
       let totals = {};
       if (type === 'rain') {
           totals = items.reduce((acc, curr) => ({
-              rainAmount: acc.rainAmount + curr.rainAmount
+            rainAmount: acc.rainAmount + curr.rainAmount
           }), { rainAmount: 0 });
       } else {
           totals = items.reduce((acc, curr) => ({
@@ -172,9 +178,17 @@ const DataReportPage = ({ waterData = [], rainData = [], damData = [] }) => {
       allMarkers: [...damGroup.items, ...waterGroup.items],
       rainMarkers: rainGroup.items
     };
-  }, [waterData, damData, rainData]);
+  }, [waterData, damData, rainData, selectedDate]); // 🟢 เพิ่ม selectedDate ใน dependency
 
   const handlePrint = () => window.print();
+
+  // Helper แปลงวันที่เป็นไทย
+  const formatThaiDate = (dateString) => {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('th-TH', { 
+          year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' 
+      });
+  };
 
   return (
     <div className="bg-white rounded-xl shadow-sm p-4 animate-fade-in flex flex-col h-[calc(100vh-100px)] print:h-auto print:shadow-none print:p-0 print:m-0 print:overflow-visible">
@@ -197,25 +211,43 @@ const DataReportPage = ({ waterData = [], rainData = [], damData = [] }) => {
       `}</style>
 
       {/* Toolbar */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-4 print:hidden">
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-4 gap-4 print:hidden">
         <div>
           <h2 className="text-2xl font-bold text-gray-800">รายงานสถานการณ์น้ำ</h2>
-          <p className="text-sm text-gray-500">ข้อมูลจริง ณ วันที่ {new Date().toLocaleDateString("th-TH")}</p>
+          {/* แสดงวันที่ที่เลือก */}
+          <p className="text-sm text-gray-500 font-medium">
+             ประจำ{formatThaiDate(selectedDate)}
+          </p>
         </div>
-        <div className="flex space-x-2 items-center">
+        
+        <div className="flex flex-wrap gap-2 items-center">
+          
+          {/* 🟢 Date Picker */}
+          <div className="flex items-center bg-white border border-gray-300 rounded-lg px-3 py-1.5 shadow-sm hover:border-teal-500 transition-colors">
+             <Calendar className="w-4 h-4 text-teal-600 mr-2" />
+             <input 
+                type="date" 
+                value={selectedDate} 
+                onChange={(e) => setSelectedDate(e.target.value)} 
+                className="text-sm text-gray-700 outline-none bg-transparent font-medium cursor-pointer"
+             />
+          </div>
+
           <div className="bg-gray-100 p-1 rounded-lg flex space-x-1">
-            <button onClick={() => setReportMode("table")} className={`px-3 py-1.5 rounded-md text-sm transition ${reportMode === "table" ? "bg-white shadow text-teal-700" : "text-gray-500"}`}>
+            <button onClick={() => setReportMode("table")} className={`px-3 py-1.5 rounded-md text-sm transition ${reportMode === "table" ? "bg-white shadow text-teal-700 font-bold" : "text-gray-500"}`}>
               <Database className="w-4 h-4 mr-2 inline" /> ตาราง
             </button>
-            <button onClick={() => setReportMode("map")} className={`px-3 py-1.5 rounded-md text-sm transition ${reportMode === "map" ? "bg-white shadow text-indigo-700" : "text-gray-500"}`}>
+            <button onClick={() => setReportMode("map")} className={`px-3 py-1.5 rounded-md text-sm transition ${reportMode === "map" ? "bg-white shadow text-indigo-700 font-bold" : "text-gray-500"}`}>
               <Map className="w-4 h-4 mr-2 inline" /> แผนที่
             </button>
           </div>
-          <label className="flex items-center space-x-2 text-sm text-gray-600 bg-gray-50 px-3 py-2 rounded-lg">
-            <input type="checkbox" checked={fitToPage} onChange={(e) => setFitToPage(e.target.checked)} className="rounded text-teal-600" />
+          
+          <label className="flex items-center space-x-2 text-sm text-gray-600 bg-gray-50 px-3 py-2 rounded-lg cursor-pointer hover:bg-gray-100">
+            <input type="checkbox" checked={fitToPage} onChange={(e) => setFitToPage(e.target.checked)} className="rounded text-teal-600 cursor-pointer" />
             <span>Fit Page</span>
           </label>
-          <button onClick={handlePrint} className="bg-teal-700 hover:bg-teal-800 text-white px-4 py-2 rounded-lg text-sm flex items-center shadow transition">
+          
+          <button onClick={handlePrint} className="bg-teal-700 hover:bg-teal-800 text-white px-4 py-2 rounded-lg text-sm flex items-center shadow transition font-bold">
             <Printer className="w-4 h-4 mr-2" /> Print
           </button>
         </div>
@@ -229,12 +261,14 @@ const DataReportPage = ({ waterData = [], rainData = [], damData = [] }) => {
             <div className="p-4 bg-white print:p-0">
               
               {/* Header สำหรับตอนปริ้น */}
-              <div className="hidden print:block mb-4 text-center">
+              <div className="hidden print:block mb-4 text-center border-b pb-4">
                   <h1 className="text-2xl font-bold text-gray-800">รายงานสถานการณ์น้ำและเขื่อน</h1>
-                  <p className="text-sm text-gray-500">ข้อมูล ณ วันที่ {new Date().toLocaleDateString('th-TH', { dateStyle: 'long' })}</p>
+                  <p className="text-sm text-gray-500">
+                    ข้อมูลประจำ{formatThaiDate(selectedDate)}
+                  </p>
+                  <p className="text-[10px] text-gray-400 mt-1 text-right">พิมพ์เมื่อ: {new Date().toLocaleString('th-TH')}</p>
               </div>
 
-              {/* 🟢 เรียกใช้ LegendBar (คำอธิบายสี) ตรงนี้จ้ะ */}
               <LegendBar />
 
               <table className="w-full min-w-[1200px] print:min-w-0 border-collapse text-sm">
@@ -260,7 +294,15 @@ const DataReportPage = ({ waterData = [], rainData = [], damData = [] }) => {
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {FINAL_DISPLAY_DATA.length === 0 ? (
-                      <tr><td colSpan="11" className="p-10 text-center text-gray-400">ไม่มีข้อมูลสำหรับแสดงรายงาน</td></tr>
+                      <tr>
+                        <td colSpan="11" className="p-16 text-center text-gray-400">
+                            <div className="flex flex-col items-center">
+                                <Database className="w-10 h-10 mb-2 opacity-50"/>
+                                <span className="font-bold">ไม่พบข้อมูลรายงานในวันที่เลือก</span>
+                                <span className="text-xs mt-1">({formatThaiDate(selectedDate)})</span>
+                            </div>
+                        </td>
+                      </tr>
                   ) : (
                     FINAL_DISPLAY_DATA.map((row) => {
                       
@@ -357,7 +399,7 @@ const DataReportPage = ({ waterData = [], rainData = [], damData = [] }) => {
                 <VideoMapComponent 
                   mode="report" 
                   markers={allMarkers} 
-                  rainMarkers={rainData} 
+                  rainMarkers={rainData.filter(d => (d.date || d.updated_at || "").startsWith(selectedDate))} // กรองฝนในแผนที่ด้วย
                 />
               </div>
             </div>
