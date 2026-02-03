@@ -1,18 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Database, Save, Loader, User, CloudRain, Droplets, Building2, Activity, FileSpreadsheet, Upload, Download } from 'lucide-react';
+import { Database, Save, Loader, User, CloudRain, Droplets, Building2, Activity, FileSpreadsheet, Upload, Download, Edit } from 'lucide-react'; // 🟢 เพิ่ม Edit Icon
 import { MysqlService } from '../../services/mysqlService';
 import { getBangkokDate } from '../../utils/helpers';
-import * as XLSX from 'xlsx'; // 🟢 1. Import xlsx
+import * as XLSX from 'xlsx';
 
 // Import Config
 import { STATION_DATA, RAIN_STATION_DATA, DAM_STATION_DATA } from '../../components/stationConfig'; 
 
-const AddDataPage = ({ user, refreshData }) => {
+const AddDataPage = ({ user, refreshData, initialData, onClearEditing }) => {
   const [reportMode, setReportMode] = useState('water');
   const [isSaving, setIsSaving] = useState(false);
-  const fileInputRef = useRef(null); // 🟢 2. Ref สำหรับปุ่ม Upload
+  const fileInputRef = useRef(null);
   
   const [formData, setFormData] = useState({ 
+    id: null, 
     stationName: '', 
     date: getBangkokDate(), 
     waterLevel: '', inflow: '', outflow: '', 
@@ -21,30 +22,60 @@ const AddDataPage = ({ user, refreshData }) => {
     capacity: '', tambon: '', amphoe: '', province: 'ลำปาง', groupId: ''
   });
 
+  // 🟢 1. useEffect ดักจับข้อมูลแก้ไข (Auto Fill)
   useEffect(() => {
-    setFormData({ 
-      stationName: '', date: getBangkokDate(), 
-      waterLevel: '', inflow: '', outflow: '', 
-      rainAmount: '', 
-      currentStorage: '', usableStorage: '', 
-      capacity: '', tambon: '', amphoe: '', province: 'ลำปาง', groupId: '' 
-    });
-  }, [reportMode]);
+    if (initialData) {
+      setReportMode(initialData.reportType);
 
-  // --- Helper: แปลงวันที่ Excel เป็น YYYY-MM-DD ---
+      const formattedDate = initialData.date 
+        ? (typeof initialData.date === 'string' ? initialData.date.split('T')[0] : getBangkokDate(initialData.date))
+        : getBangkokDate();
+
+      setFormData({
+        id: initialData.id,
+        stationName: initialData.stationName || initialData.station_name || '',
+        date: formattedDate,
+        waterLevel: initialData.waterLevel || initialData.water_level || '',
+        inflow: initialData.inflow || '',
+        outflow: initialData.outflow || '',
+        rainAmount: initialData.rainAmount || '',
+        currentStorage: initialData.currentStorage || initialData.current_storage || '',
+        usableStorage: initialData.usableStorage || initialData.usable_storage || '',
+        capacity: initialData.capacity || '',
+        tambon: initialData.tambon || '',
+        amphoe: initialData.amphoe || '',
+        province: initialData.province || 'ลำปาง',
+        groupId: initialData.groupId || initialData.group_id || ''
+      });
+    } else {
+        setFormData(prev => ({ ...prev, id: null }));
+    }
+  }, [initialData]);
+
+  // useEffect เคลียร์ค่าเมื่อเปลี่ยน Tab (ทำเฉพาะตอนไม่ได้ Edit)
+  useEffect(() => {
+    if (!initialData) { 
+        setFormData({ 
+          id: null,
+          stationName: '', date: getBangkokDate(), 
+          waterLevel: '', inflow: '', outflow: '', 
+          rainAmount: '', 
+          currentStorage: '', usableStorage: '', 
+          capacity: '', tambon: '', amphoe: '', province: 'ลำปาง', groupId: '' 
+        });
+    }
+  }, [reportMode]); 
+
+  // --- Helper Functions ---
   const excelDateToJSDate = (serial) => {
      if (!serial) return getBangkokDate();
-     // ถ้าเป็น String YYYY-MM-DD อยู่แล้ว
      if (typeof serial === 'string' && serial.includes('-')) return serial;
-     
-     // ถ้าเป็น Serial Number ของ Excel
      const utc_days  = Math.floor(serial - 25569);
      const utc_value = utc_days * 86400;                                      
      const date_info = new Date(utc_value * 1000);
      return date_info.toISOString().split('T')[0];
   };
 
-  // --- 🟢 3. ฟังก์ชันจัดการไฟล์ Excel ---
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -64,12 +95,11 @@ const AddDataPage = ({ user, refreshData }) => {
         } else {
             alert("ไม่พบข้อมูลในไฟล์ Excel");
         }
-        e.target.value = null; // Reset input
+        e.target.value = null; 
     };
     reader.readAsBinaryString(file);
   };
 
- // --- 🟢 4. Logic ประมวลผลและบันทึกข้อมูลจาก Excel (ฉบับอัปเกรด: มีระบบป้องกันไฟล์ผิด) ---
   const processExcelData = async (data) => {
     setIsSaving(true);
     let successCount = 0;
@@ -77,8 +107,7 @@ const AddDataPage = ({ user, refreshData }) => {
     const creatorName = user?.fullName || user?.username || 'System Import';
 
     try {
-        // 🛡️ 1. ตรวจสอบหัวตารางก่อน (Validation)
-        // เอาแถวแรกมาดูว่ามี key (ชื่อคอลัมน์) อะไรบ้าง
+        // Validation: ตรวจสอบหัวตาราง
         const firstRow = data[0]; 
         const keys = Object.keys(firstRow);
         
@@ -86,7 +115,7 @@ const AddDataPage = ({ user, refreshData }) => {
         let modeName = "";
 
         if (reportMode === 'water') {
-            requiredColumns = ['ระดับน้ำ', 'waterLevel']; // เช็คว่ามีคำใดคำหนึ่งมั้ย
+            requiredColumns = ['ระดับน้ำ', 'waterLevel'];
             modeName = "ข้อมูลน้ำทั่วไป";
         } else if (reportMode === 'rain') {
             requiredColumns = ['ปริมาณฝน', 'rainAmount'];
@@ -96,18 +125,13 @@ const AddDataPage = ({ user, refreshData }) => {
             modeName = "ปริมาณน้ำในเขื่อน";
         }
 
-        // เช็คว่าในไฟล์ มีคอลัมน์ที่จำเป็นไหม (อย่างน้อย 1 อัน)
         const hasValidColumn = requiredColumns.some(col => keys.includes(col));
 
         if (!hasValidColumn) {
             alert(`❌ ไฟล์ไม่ถูกต้อง!\n\nคุณกำลังอยู่โหมด: "${modeName}"\nแต่ไฟล์ที่อัปโหลดไม่มีคอลัมน์: ${requiredColumns[0]}\n\nกรุณาตรวจสอบไฟล์ หรือโหลด Template ใหม่`);
-            setIsSaving(false); // ยกเลิกการบันทึก
-            return; // ⛔ จบการทำงานทันที
+            setIsSaving(false);
+            return;
         }
-
-        // ----------------------------------------
-        // ถ้าผ่านด่านตรวจ ก็ลุยต่อตามปกติ...
-        // ----------------------------------------
 
         for (const row of data) {
             try {
@@ -175,7 +199,6 @@ const AddDataPage = ({ user, refreshData }) => {
     }
   };
 
-  // --- 🟢 5. ฟังก์ชันดาวน์โหลด Template (ตัวอย่างไฟล์) ---
   const downloadTemplate = () => {
       let headers = [];
       let sample = [];
@@ -197,7 +220,6 @@ const AddDataPage = ({ user, refreshData }) => {
       XLSX.writeFile(wb, `Template_${reportMode}.xlsx`);
   };
 
-  // ... (handleChange และ handleSave แบบ Manual เดิม คงไว้เหมือนเดิม) ...
   const handleChange = (e) => {
     const { name, value } = e.target;
     
@@ -245,6 +267,9 @@ const AddDataPage = ({ user, refreshData }) => {
       const creatorName = user.fullName || user.username;
       let result = null;
 
+      // 🟢 เช็คว่าเป็นการ "แก้ไข" (มี ID) หรือ "เพิ่มใหม่"
+      const isEditMode = !!formData.id; 
+
       if (reportMode === 'water') {
         const payload = {
             stationName: formData.stationName,
@@ -256,42 +281,57 @@ const AddDataPage = ({ user, refreshData }) => {
             amphoe: formData.amphoe,
             province: formData.province || "ลำปาง",
             groupId: formData.groupId || "",
-            createdBy: creatorName
+            createdBy: creatorName,
+            status: 'pending' 
         };
-        result = await MysqlService.createReport(payload);
+        
+        if (isEditMode) {
+            result = await MysqlService.updateReport(formData.id, payload);
+        } else {
+            result = await MysqlService.createReport(payload);
+        }
       }
       else if (reportMode === 'rain') {
-        const payload = {
+         const payload = {
             stationName: formData.stationName,
             date: formData.date,
             rainAmount: formData.rainAmount || "",
             tambon: formData.tambon || "-",
             amphoe: formData.amphoe,
             province: formData.province || "ลำปาง",
-            createdBy: creatorName
-        };
-        result = await MysqlService.createRainReport(payload);
+            createdBy: creatorName,
+            status: 'pending'
+         };
+         if (isEditMode) result = await MysqlService.updateRainReport(formData.id, payload);
+         else result = await MysqlService.createRainReport(payload);
       }
       else if (reportMode === 'dam') {
-        const payload = {
+         const payload = {
             stationName: formData.stationName,
             date: formData.date,
             currentStorage: formData.currentStorage || "",
             usableStorage: formData.usableStorage || "",
             capacity: formData.capacity || "",
-            createdBy: creatorName
-        };
-        result = await MysqlService.createDamReport(payload); 
+            createdBy: creatorName,
+            status: 'pending'
+         };
+         if (isEditMode) result = await MysqlService.updateDamReport(formData.id, payload);
+         else result = await MysqlService.createDamReport(payload);
       }
 
       if (result) {
-        alert(`✅ บันทึกข้อมูลสำเร็จ!`);
+        alert(`✅ ${isEditMode ? 'แก้ไข' : 'บันทึก'}ข้อมูลสำเร็จ!`);
         setFormData({ 
+          id: null,
           stationName: '', date: getBangkokDate(), waterLevel: '', 
           inflow: '', outflow: '', rainAmount: '', 
           currentStorage: '', usableStorage: '', 
           capacity: '', tambon: '', amphoe: '', province: 'ลำปาง', groupId: '' 
         });
+        
+        // 🟢 เรียกเคลียร์ค่า editingData ที่ App.js
+        if (onClearEditing) onClearEditing();
+        
         if (refreshData) refreshData();
       }
     } catch (e) {
@@ -307,51 +347,40 @@ const AddDataPage = ({ user, refreshData }) => {
       {/* Header & Tabs */}
       <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
         <h2 className="text-xl font-bold text-gray-800 flex items-center">
-          <Database className={`w-6 h-6 mr-3 ${
-             reportMode === 'water' ? 'text-blue-600' : reportMode === 'rain' ? 'text-cyan-600' : 'text-indigo-600'
-          }`} /> 
-          บันทึกข้อมูล: <span className="ml-2 underline decoration-2 underline-offset-4">
+          {/* เปลี่ยนไอคอนและข้อความตามสถานะ (Add/Edit) */}
+          {initialData ? <Edit className="w-6 h-6 mr-3 text-orange-500" /> : <Database className={`w-6 h-6 mr-3 ${reportMode === 'water' ? 'text-blue-600' : reportMode === 'rain' ? 'text-cyan-600' : 'text-indigo-600'}`} />} 
+          
+          <span className={initialData ? "text-orange-600" : ""}>
+             {initialData ? 'แก้ไขข้อมูล:' : 'บันทึกข้อมูล:'} 
+          </span>
+          
+          <span className="ml-2 underline decoration-2 underline-offset-4 text-gray-800">
             {reportMode === 'water' ? 'สถานการณ์น้ำ (ทั่วไป)' : reportMode === 'rain' ? 'ปริมาณน้ำฝน' : 'ปริมาณน้ำในเขื่อน'}
           </span>
         </h2>
 
-        {/* 🟢 ส่วนปุ่ม Import Excel */}
-        <div className="flex items-center gap-2">
-            <input 
-                type="file" 
-                ref={fileInputRef} 
-                onChange={handleFileUpload} 
-                accept=".xlsx, .xls" 
-                className="hidden" 
-            />
-            <button 
-                onClick={downloadTemplate}
-                className="flex items-center px-3 py-2 text-xs font-bold text-green-700 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100 transition"
-                title="ดาวน์โหลดตัวอย่างไฟล์"
-            >
-                <Download className="w-4 h-4 mr-1" /> Template
-            </button>
-            <button 
-                onClick={() => fileInputRef.current.click()}
-                className="flex items-center px-4 py-2 text-sm font-bold text-white bg-green-600 rounded-lg hover:bg-green-700 shadow-md transition"
-            >
-                <FileSpreadsheet className="w-4 h-4 mr-2" /> Import Excel
-            </button>
-        </div>
+        {!initialData && ( 
+            <div className="flex items-center gap-2">
+                <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".xlsx, .xls" className="hidden" />
+                <button onClick={downloadTemplate} className="flex items-center px-3 py-2 text-xs font-bold text-green-700 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100 transition" title="ดาวน์โหลดตัวอย่างไฟล์"><Download className="w-4 h-4 mr-1" /> Template</button>
+                <button onClick={() => fileInputRef.current.click()} className="flex items-center px-4 py-2 text-sm font-bold text-white bg-green-600 rounded-lg hover:bg-green-700 shadow-md transition"><FileSpreadsheet className="w-4 h-4 mr-2" /> Import Excel</button>
+            </div>
+        )}
       </div>
 
-      {/* ปุ่มเลือกโหมด 3 ปุ่ม */}
-      <div className="flex bg-gray-100 p-1 rounded-xl border border-gray-200 shadow-inner mb-6">
-          <button onClick={() => setReportMode('water')} className={`flex-1 flex justify-center items-center px-4 py-2 rounded-lg text-sm font-bold transition-all ${reportMode === 'water' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-500 hover:text-blue-600'}`}>
-            <Droplets className="w-4 h-4 mr-2" /> ข้อมูลน้ำ
-          </button>
-          <button onClick={() => setReportMode('rain')} className={`flex-1 flex justify-center items-center px-4 py-2 rounded-lg text-sm font-bold transition-all ${reportMode === 'rain' ? 'bg-cyan-600 text-white shadow-md' : 'text-gray-500 hover:text-cyan-600'}`}>
-            <CloudRain className="w-4 h-4 mr-2" /> ข้อมูลฝน
-          </button>
-          <button onClick={() => setReportMode('dam')} className={`flex-1 flex justify-center items-center px-4 py-2 rounded-lg text-sm font-bold transition-all ${reportMode === 'dam' ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-500 hover:text-indigo-600'}`}>
-            <Building2 className="w-4 h-4 mr-2" /> น้ำเขื่อน
-          </button>
-      </div>
+      {!initialData && (
+          <div className="flex bg-gray-100 p-1 rounded-xl border border-gray-200 shadow-inner mb-6">
+            <button onClick={() => setReportMode('water')} className={`flex-1 flex justify-center items-center px-4 py-2 rounded-lg text-sm font-bold transition-all ${reportMode === 'water' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-500 hover:text-blue-600'}`}>
+                <Droplets className="w-4 h-4 mr-2" /> ข้อมูลน้ำ
+            </button>
+            <button onClick={() => setReportMode('rain')} className={`flex-1 flex justify-center items-center px-4 py-2 rounded-lg text-sm font-bold transition-all ${reportMode === 'rain' ? 'bg-cyan-600 text-white shadow-md' : 'text-gray-500 hover:text-cyan-600'}`}>
+                <CloudRain className="w-4 h-4 mr-2" /> ข้อมูลฝน
+            </button>
+            <button onClick={() => setReportMode('dam')} className={`flex-1 flex justify-center items-center px-4 py-2 rounded-lg text-sm font-bold transition-all ${reportMode === 'dam' ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-500 hover:text-indigo-600'}`}>
+                <Building2 className="w-4 h-4 mr-2" /> น้ำเขื่อน
+            </button>
+          </div>
+      )}
 
       {/* User Info */}
       <div className={`border rounded-xl p-4 mb-6 flex items-center justify-between ${
@@ -360,17 +389,11 @@ const AddDataPage = ({ user, refreshData }) => {
           'bg-indigo-50 border-indigo-200'
       }`}>
         <div className="flex items-center">
-          <div className={`p-2 rounded-full mr-3 ${
-              reportMode === 'water' ? 'bg-blue-200' : reportMode === 'rain' ? 'bg-cyan-200' : 'bg-indigo-200'
-          }`}>
-            <User className={`w-5 h-5 ${
-                reportMode === 'water' ? 'text-blue-700' : reportMode === 'rain' ? 'text-cyan-700' : 'text-indigo-700'
-            }`} />
+          <div className={`p-2 rounded-full mr-3 ${reportMode === 'water' ? 'bg-blue-200' : reportMode === 'rain' ? 'bg-cyan-200' : 'bg-indigo-200'}`}>
+            <User className={`w-5 h-5 ${reportMode === 'water' ? 'text-blue-700' : reportMode === 'rain' ? 'text-cyan-700' : 'text-indigo-700'}`} />
           </div>
           <div>
-            <p className={`text-xs font-semibold uppercase ${
-                reportMode === 'water' ? 'text-blue-600' : reportMode === 'rain' ? 'text-cyan-600' : 'text-indigo-600'
-            }`}>เจ้าหน้าที่บันทึก</p>
+            <p className={`text-xs font-semibold uppercase ${reportMode === 'water' ? 'text-blue-600' : reportMode === 'rain' ? 'text-cyan-600' : 'text-indigo-600'}`}>เจ้าหน้าที่บันทึก</p>
             <p className="text-lg font-bold text-gray-800">{user.fullName || user.username}</p>
           </div>
         </div>
@@ -412,6 +435,7 @@ const AddDataPage = ({ user, refreshData }) => {
             onChange={handleChange} 
             className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 outline-none bg-white font-bold transition-all focus:ring-blue-500" 
             required
+            disabled={!!initialData} // ห้ามเปลี่ยนสถานีตอน Edit
           >
             <option value="">-- กรุณาเลือก --</option>
             {reportMode === 'water' && STATION_DATA.map((s) => (<option key={s.name} value={s.name}>{s.name}</option>))}
@@ -509,17 +533,34 @@ const AddDataPage = ({ user, refreshData }) => {
 
         </div>
 
-        <div className="md:col-span-2 mt-6">
+        {/* ปุ่ม Submit */}
+        <div className="md:col-span-2 mt-6 flex gap-3">
+          {/* 🟢 ถ้ากำลังแก้ไข มีปุ่มยกเลิกให้ด้วย */}
+          {initialData && (
+              <button 
+                type="button" 
+                onClick={() => {
+                    setFormData({ id: null, stationName: '', date: getBangkokDate(), waterLevel: '', inflow: '', outflow: '', rainAmount: '', currentStorage: '', usableStorage: '', capacity: '', tambon: '', amphoe: '', province: 'ลำปาง', groupId: '' });
+                    if (onClearEditing) onClearEditing();
+                }}
+                className="w-1/3 bg-gray-200 text-gray-700 px-4 py-5 rounded-2xl font-bold hover:bg-gray-300 transition-all"
+              >
+                ยกเลิก
+              </button>
+          )}
+          
           <button 
             type="submit" disabled={isSaving} 
-            className={`w-full text-white px-8 py-5 rounded-2xl transition-all flex items-center justify-center disabled:bg-gray-400 font-black text-lg shadow-xl transform active:scale-95 ${
-               reportMode === 'water' ? 'bg-blue-600 hover:bg-blue-700 shadow-blue-200' : 
-               reportMode === 'rain' ? 'bg-cyan-600 hover:bg-cyan-700 shadow-cyan-200' : 
-               'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200'
+            className={`flex-1 text-white px-8 py-5 rounded-2xl transition-all flex items-center justify-center disabled:bg-gray-400 font-black text-lg shadow-xl transform active:scale-95 ${
+               initialData 
+                 ? 'bg-orange-500 hover:bg-orange-600 shadow-orange-200' 
+                 : reportMode === 'water' ? 'bg-blue-600 hover:bg-blue-700 shadow-blue-200' 
+                 : reportMode === 'rain' ? 'bg-cyan-600 hover:bg-cyan-700 shadow-cyan-200' 
+                 : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200'
             }`}
           >
             {isSaving ? <Loader className="w-6 h-6 mr-3 animate-spin" /> : <Save className="w-6 h-6 mr-3" />} 
-            {isSaving ? 'กำลังบันทึกข้อมูล...' : `ยืนยันบันทึกข้อมูล`}
+            {isSaving ? 'กำลังบันทึกข้อมูล...' : initialData ? 'ยืนยันแก้ไขข้อมูล' : 'ยืนยันบันทึกข้อมูล'}
           </button>
         </div>
       </form>
