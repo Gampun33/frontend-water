@@ -27,7 +27,7 @@ export const MAP_OVERLAY_CONFIG = {
 };
 
 export const DATE_TIME_CONFIG = {
-  desktop: { top: "1%", right: "33.5%", scale: 1.1 },
+  desktop: { top: "3.5%", right: "33.5%", scale: 1 },
   report:  { top: "13.5%", right: "35%", scale: 0.8 }
 };
 
