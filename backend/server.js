@@ -1,4 +1,4 @@
-require("dotenv").config(); // 🟢 เพิ่มบรรทัดนี้ไว้บนสุดของไฟล์
+require("dotenv").config();
 const express = require("express");
 const mysql = require("mysql2");
 const cors = require("cors");
@@ -25,11 +25,9 @@ db.getConnection((err, connection) => {
   }
 });
 
+// ฟังก์ชัน Log พื้นฐาน (เก็บไว้ดูว่าใครเรียก API ไหน แต่ไม่โชว์ข้อมูลลึก)
 const logRequest = (method, path, body) => {
-  console.log(
-    `[${new Date().toLocaleTimeString()}] ${method} ${path}`,
-    body ? JSON.stringify(body) : ""
-  );
+  console.log(`[${new Date().toLocaleTimeString()}] ${method} ${path}`);
 };
 
 // --- 2. API Routes ---
@@ -38,15 +36,9 @@ app.get("/", (req, res) => {
   res.send("<h1>HydroMonitor API Server is Running! 🚀</h1>");
 });
 
-// --- 🔵 2.1 Login API (เวอร์ชัน Debug รหัสผ่าน) ---
+// --- 🔵 2.1 Login API (Clean Version) ---
 app.post("/api/login", (req, res) => {
   const { username, password } = req.body;
-
-  // 🔍 DEBUG 1: ส่องรหัสที่ส่งมาจาก React
-  console.log("-----------------------------------------");
-  console.log(`[LOGIN DEBUG] เวลา: ${new Date().toLocaleTimeString()}`);
-  console.log(`[LOGIN DEBUG] ผู้ใช้: ${username}`);
-  console.log(`[LOGIN DEBUG] รหัสที่ส่งมา (Hash): ${password}`);
 
   const sql = "SELECT * FROM users WHERE username = ?";
   db.query(sql, [username], (err, results) => {
@@ -56,18 +48,13 @@ app.post("/api/login", (req, res) => {
     }
 
     if (results.length === 0) {
-      console.log(`[LOGIN DEBUG] ❌ ไม่พบชื่อผู้ใช้: ${username}`);
       return res.status(401).json({ message: "ไม่พบชื่อผู้ใช้นี้ในระบบ" });
     }
 
     const user = results[0];
 
-    // 🔍 DEBUG 2: ส่องรหัสที่อยู่ใน Database มาเทียบกัน
-    console.log(`[LOGIN DEBUG] รหัสใน Database:  ${user.password}`);
-
+    // ตรวจสอบรหัสผ่าน (แบบ Clean ไม่ Log รหัสผ่านออก console)
     if (user.password === password) {
-      console.log("✅ [LOGIN DEBUG] รหัสผ่านตรงกัน! เข้าสู่ระบบสำเร็จ");
-      console.log("-----------------------------------------");
       res.json({
         id: user.id,
         username: user.username,
@@ -76,14 +63,12 @@ app.post("/api/login", (req, res) => {
         organization: user.organization,
       });
     } else {
-      console.log("❌ [LOGIN DEBUG] รหัสผ่านไม่ตรงกัน!");
-      console.log("-----------------------------------------");
       res.status(401).json({ message: "รหัสผ่านไม่ถูกต้อง" });
     }
   });
 });
 
-// --- 🔵 2.2 Water Reports APIs (จุดที่ต้องแก้เพื่อให้ชื่อผู้ส่งโชว์) ---
+// --- 🔵 2.2 Water Reports APIs ---
 app.get("/api/reports", (req, res) => {
   logRequest("GET", "/api/reports");
 
@@ -96,19 +81,14 @@ app.get("/api/reports", (req, res) => {
   db.query(sql, (err, results) => {
     if (err) return res.status(500).json({ error: err.message });
 
-    // ใน server.js ส่วน app.get("/api/reports", ...)
     const formatted = results.map((row) => {
       const d = new Date(row.report_date);
-      const localDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(
-        2,
-        "0"
-      )}-${String(d.getDate()).padStart(2, "0")}`;
+      const localDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2,"0")}-${String(d.getDate()).padStart(2, "0")}`;
 
       return {
         ...row,
         stationName: row.station_name,
         date: localDate,
-        // 🟢 จุดสำคัญ: ต้องมั่นใจว่าส่งตัวแปรชื่อ waterLevel (L ตัวใหญ่)
         waterLevel: row.water_level,
         current: row.current_volume,
         percent: row.calculated_percent || 0,
@@ -123,9 +103,8 @@ app.get("/api/reports", (req, res) => {
 });
 
 app.post("/api/reports", (req, res) => {
-  logRequest("POST", "/api/reports", req.body);
+  logRequest("POST", "/api/reports");
 
-  // ล้างคีย์ให้สะอาด (ป้องกันอักขระพิเศษ)
   const cleanData = {};
   Object.keys(req.body).forEach((key) => {
     const cleanKey = key.trim().replace(/[^\x20-\x7E]/g, "");
@@ -185,13 +164,12 @@ app.put("/api/reports/:id", (req, res) => {
     inflow,
     outflow,
     status,
-  } = req.body; // 🟢 ดึงค่ามาให้ครบ
+  } = req.body;
 
-  logRequest("PUT", `/api/reports/${id}`, req.body);
+  logRequest("PUT", `/api/reports/${id}`);
 
   const current = parseFloat(waterLevel) || 0;
 
-  // 1. ตรวจสอบลำดับ ?: 1.station, 2.tambon, 3.amphoe, 4.province, 5.water_level, 6.current, 7.inflow, 8.outflow, 9.status
   const sql = `
     UPDATE water_reports 
     SET station_name=?, tambon=?, amphoe=?, province=?, water_level=?, current_volume=?, inflow=?, outflow=?, status=? 
@@ -209,8 +187,8 @@ app.put("/api/reports/:id", (req, res) => {
       current,
       inflow || 0,
       outflow || 0,
-      status, // 👈 ตัวนี้แหละที่จะเปลี่ยนจาก 'pending' เป็น 'approved'
-      id, // 👈 ID ต้องอยู่ตัวสุดท้ายเสมอ
+      status,
+      id,
     ],
     (err, result) => {
       if (err) {
@@ -223,6 +201,7 @@ app.put("/api/reports/:id", (req, res) => {
 });
 
 app.delete("/api/reports/:id", (req, res) => {
+  logRequest("DELETE", `/api/reports/${req.params.id}`);
   db.query(
     "DELETE FROM water_reports WHERE id = ?",
     [req.params.id],
@@ -286,9 +265,8 @@ app.delete("/api/users/:id", (req, res) => {
   });
 });
 
-// --- 🔵 2.4 Rain Reports APIs (ระบบรายงานข้อมูลฝน) ---
+// --- 🔵 2.4 Rain Reports APIs ---
 
-// 1. ดึงข้อมูลฝนทั้งหมด
 app.get("/api/rain-reports", (req, res) => {
   logRequest("GET", "/api/rain-reports");
 
@@ -303,7 +281,7 @@ app.get("/api/rain-reports", (req, res) => {
 
       return {
         ...row,
-        stationName: row.stationName, // คีย์ตรงกับ React
+        stationName: row.stationName,
         date: localDate,
         rainAmount: parseFloat(row.rainAmount) || 0,
         createdBy: row.createdBy,
@@ -314,9 +292,8 @@ app.get("/api/rain-reports", (req, res) => {
   });
 });
 
-// 2. บันทึกข้อมูลฝนใหม่
 app.post("/api/rain-reports", (req, res) => {
-  logRequest("POST", "/api/rain-reports", req.body);
+  logRequest("POST", "/api/rain-reports");
 
   const {
     stationName,
@@ -355,12 +332,11 @@ app.post("/api/rain-reports", (req, res) => {
   );
 });
 
-// 3. อัปเดตข้อมูลฝน (สำหรับหน้าตรวจสอบ/อนุมัติ)
 app.put("/api/rain-reports/:id", (req, res) => {
   const { id } = req.params;
   const { rainAmount, status } = req.body;
 
-  logRequest("PUT", `/api/rain-reports/${id}`, req.body);
+  logRequest("PUT", `/api/rain-reports/${id}`);
 
   const sql = `UPDATE rain_reports SET rainAmount=?, status=? WHERE id=?`;
 
@@ -373,12 +349,99 @@ app.put("/api/rain-reports/:id", (req, res) => {
   });
 });
 
-// 4. ลบข้อมูลฝน
 app.delete("/api/rain-reports/:id", (req, res) => {
+  logRequest("DELETE", `/api/rain-reports/${req.params.id}`);
   db.query("DELETE FROM rain_reports WHERE id = ?", [req.params.id], (err, result) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json({ success: true });
   });
+});
+
+
+// --- 🏭 ส่วนจัดการข้อมูลเขื่อน (Dam Reports) ---
+
+app.post('/api/dam-reports', (req, res) => {
+    logRequest("POST", "/api/dam-reports");
+    const { 
+        stationName, date, 
+        currentStorage, usableStorage, capacity, 
+        createdBy 
+    } = req.body;
+    
+    const sql = `
+        INSERT INTO dam_reports 
+        (station_name, date, current_storage, usable_storage, capacity, created_by) 
+        VALUES (?, ?, ?, ?, ?, ?)
+    `;
+    
+    db.query(sql, [
+        stationName, date, 
+        currentStorage, usableStorage, capacity, 
+        createdBy
+    ], (err, result) => {
+        if (err) {
+            console.error("Error inserting dam report:", err);
+            return res.status(500).json(err);
+        }
+        res.json({ success: true, id: result.insertId });
+    });
+});
+
+app.get('/api/dam-reports', (req, res) => {
+    logRequest("GET", "/api/dam-reports");
+    const sql = `
+        SELECT 
+            id, 
+            station_name AS stationName, 
+            date, 
+            current_storage AS currentStorage, 
+            usable_storage AS usableStorage, 
+            capacity, 
+            created_by AS createdBy, 
+            status, 
+            created_at 
+        FROM dam_reports 
+        ORDER BY date DESC, id DESC
+    `;
+
+    db.query(sql, (err, results) => {
+        if (err) return res.status(500).json(err);
+        res.json(results);
+    });
+});
+
+app.put('/api/dam-reports/:id', (req, res) => {
+    const { id } = req.params;
+    const { currentStorage, usableStorage, capacity, status } = req.body;
+
+    logRequest("PUT", `/api/dam-reports/${id}`);
+
+    const sql = `
+        UPDATE dam_reports 
+        SET current_storage=?, usable_storage=?, capacity=?, status=? 
+        WHERE id=?
+    `;
+
+    db.query(sql, [currentStorage, usableStorage, capacity, status, id], (err, result) => {
+        if (err) {
+            console.error("Error updating dam report:", err);
+            return res.status(500).json(err);
+        }
+        res.json({ success: true });
+    });
+});
+
+app.delete('/api/dam-reports/:id', (req, res) => {
+    const { id } = req.params;
+    logRequest("DELETE", `/api/dam-reports/${id}`);
+
+    db.query('DELETE FROM dam_reports WHERE id = ?', [id], (err, result) => {
+        if (err) {
+            console.error("Error deleting dam report:", err);
+            return res.status(500).json(err);
+        }
+        res.json({ success: true });
+    });
 });
 
 // --- 3. Start Server ---
