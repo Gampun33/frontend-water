@@ -1,7 +1,7 @@
 import { getBangkokDate } from '../utils/helpers';
 import { hashPassword } from '../utils/security';
 
-const API_URL = 'http://localhost:3001/api';
+const API_URL = 'https://water-api-1rwb.onrender.com/api';
 
 export const MysqlService = {
   async request(endpoint, options = {}) {
